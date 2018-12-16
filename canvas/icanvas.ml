@@ -25,18 +25,23 @@ module MakeVersioned (Config: Config)  = struct
   type vt = 
    | N of vpixel 
    | B of vnode
+
+  type vcanvas = {max_x:int64; max_y: int64; vt:vt}
+
+  type vloc = {x:int64; y:int64}
   
 
   module M = struct
+  (* AO_value represents the value that will be passed to the Irmin store *)
     module AO_value = struct
       type t = vt
-
+    
       let vpixel = 
         let open Irmin.Type in
         record "vpixel" (fun r g b -> {r; g; b})
-        |+ field "r" char (fun t -> t.r)
-        |+ field "g" char (fun t -> t.g)
-        |+ field "b" char (fun t -> t.b)
+        |+ field "r" Irmin.Type.char (fun t -> t.r)
+        |+ field "g" Irmin.Type.char (fun t -> t.g)
+        |+ field "b" Irmin.Type.char (fun t -> t.b)
         |> sealr
 
 
@@ -58,6 +63,22 @@ module MakeVersioned (Config: Config)  = struct
         |~ case1 "N" vpixel (fun x -> N x)
         |~ case1 "B" vnode (fun x -> B x)
         |> sealv
+
+
+      let vcanvas = 
+       let open Irmin.Type in 
+       record "vcanvas" (fun max_x max_y vt -> {max_x; max_y; vt})
+       |+ field "max_x" int64 (fun t -> t.max_x)
+       |+ field "max_y" int64 (fun t -> t.max_y)
+       |+ field "vt" t (fun t -> t.vt)
+       |> sealr
+
+      let vloc = 
+       let open Irmin.Type in 
+       record "vloc" (fun x y -> {x ; y})
+       |+ field "x" int64 (fun t -> t.x)
+       |+ field "y" int64 (fun t -> t.y)
+       |> sealr
 
     let pp = Irmin.Type.dump t
     
@@ -90,23 +111,8 @@ module MakeVersioned (Config: Config)  = struct
      
     (* canvas functions *)
 
-  let default_pixel = {r=Char.chr 255; g=Char.chr 255; b=Char.chr 255}   
+  let default_pixel = {r=Char.chr (255); g=Char.chr (255); b=Char.chr (255)}   
   let blank = N default_pixel
-
-  let empty = 
-    AO_store.create () >>= fun ao_store ->
-    AO_store.add ao_store blank
-
-  let plain px = 
-    AO_store.create () >>= fun ao_store ->
-    AO_store.add ao_store @@ N px
-
-  let cons tl tr bl br  = 
-    let new_c = B {tl_t=tl; tr_t=tr; bl_t=bl; br_t=br} in
-      AO_store.create () >>= fun ao_store ->
-      AO_store.add ao_store new_c
-
-  let b_of_n px = plain px >>= fun k -> cons k k k k 
 
   let rec of_adt (a:OM.t) : t Lwt.t  =
       let aostore = AO_store.create () in
