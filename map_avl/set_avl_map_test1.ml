@@ -24,9 +24,9 @@ let module IntAtom = struct
   type t = int64
   let compare = Pervasives.compare
   let t = Irmin.Type.int64
-  let resolve x y =  x + y 
-  let merge3 ~ancestor x y = ancestor + (x - ancestor) + (y - ancestor)
-  let equal x y = Pervasives.compare x y = 0 
+  let resolve x y =  Int64.of_int 0
+  let merge3 ~ancestor x y = Int64.of_int 0
+  let compare = Pervasives.compare 
   let to_string = Int64.to_string
   let of_string = Int64.of_string
 end in 
@@ -36,7 +36,7 @@ end in
     let to_string (s:t):t = s
     let compare = Pervasives.compare
     let t = Irmin.Type.string
-      let of_string s = s
+    let of_string s = s
 end in 
 
 let module CInit = MkConfig(struct let root = "/tmp/repos/init.git" end) in 
@@ -53,7 +53,7 @@ let thread2_f : unit Vpst.t =
   Vpst.liftLwt @@ Lwt_unix.sleep 0.5 >>= fun () ->
   let c1' = c1 |> (MInit.OM.remove "C")  in 
   Vpst.sync_next_version ~v:c1' >>= fun c2 ->
-  MInit.OM.iter (fun k a -> Printf.printf "%s : %s\n" k (IntAtom.to_string a) ) c2
+  (*MInit.OM.iter (*(fun a -> Printf.printf "%s : %s\n" (IntAtom.to_string a) )*) c2*)
   Vpst.return ()  in 
 
 
@@ -64,13 +64,12 @@ let thread2_f : unit Vpst.t =
   let c0' = c0 |> (MInit.OM.add "Z" (Int64.of_int 4)) |> (MInit.OM.add "D" (Int64.of_int 70)) in
   Vpst.sync_next_version ~v:c0' >>= fun c1 ->
   Vpst.liftLwt @@ Lwt_unix.sleep 0.1 >>= fun () ->
-  let c1' = c1 |> (MInit.OM.add (Int64.of_int 1)) in
+  let c1' = c1 |> (MInit.OM.add "B" (Int64.of_int 1)) in
   Vpst.sync_next_version ~v:c1' >>= fun c2 ->
-  let _ = Printf.printf "merged : %s\n" (U.string_of_list IntAtom.to_string (MInit.OM.elements c2)) in 
   Vpst.liftLwt @@ Lwt_unix.sleep 1.1 >>= fun () ->
   Vpst.sync_next_version ~v:c2 >>= fun c3 ->
   Printf.printf "merged = apply q' on v1:\n";
-  MInit.OM.iter (fun k a -> Printf.printf "%s : %s\n" k (IntAtom.to_string a) ) (MInit.OM.elements c3) 
+  (*MInit.OM.iter (fun k a -> Printf.printf "%s : %s\n" k (IntAtom.to_string a) ) (MInit.OM.elements c3) *)
   Vpst.return ()   in 
 
   let main () =

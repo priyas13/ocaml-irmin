@@ -409,7 +409,7 @@ struct
       | (End, _)  -> false
       | (_, End) -> false
       | (More(v1, d1, r1, e1), More(v2, d2, r2, e2)) ->
-        Key.compare v1 v2 = 0 && Atom.equal d1 d2 &&
+        Key.compare v1 v2 = 0 && (Atom.compare d1 d2 = 0) &&
         equal_aux (cons_enum r1 e1) (cons_enum r2 e2)
     in equal_aux (cons_enum m1 End) (cons_enum m2 End)
 
@@ -461,7 +461,7 @@ struct
           match d2 with
           | None -> List.append l (Remove v1 :: r)
           | Some d2 ->
-            if Atom.equal d1 d2 then
+            if (Atom.compare d1 d2 = 0) then
               List.append l r
             else
               List.append l (Replace (v1, d1, d2) :: r)
@@ -472,7 +472,7 @@ struct
           match d1 with
           | None -> List.append l (Add (v2, d2) :: r)
           | Some d1 ->
-            if Atom.equal d1 d2 then
+            if (Atom.compare d1 d2 = 0) then
               List.append l r
             else
               List.append l (Replace (v1, d1, d2) :: r)
@@ -498,7 +498,7 @@ struct
         match hx, hy with
         | Add (kx, x), Add (ky, y) ->
           let on_conflict () =
-            if Atom.equal x y then
+            if (Atom.compare x y = 0) then
               transform_aux rxs rys
             else
               let m = Atom.resolve x y in
@@ -516,7 +516,7 @@ struct
           handle kx ky on_conflict
         | Replace (kx, ax, x), Replace (ky, ay, y) ->
           let on_conflict () =
-            if Atom.equal x y then
+            if (Atom.compare x y = 0) then
               transform_aux rxs rys
             else
               let m = Atom.merge3 ~ancestor:ax x y in

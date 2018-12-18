@@ -10,7 +10,7 @@ end
 
 module type ATOM = sig
   type t
-  val equal: t -> t -> bool
+  val compare: t -> t -> int
   val t: t Irmin.Type.t
   val to_string : int64 -> string   
   val of_string: string -> t
