@@ -22,7 +22,6 @@ end in
 
 let module IntAtom = struct
   type t = int64
-  let compare = Pervasives.compare
   let t = Irmin.Type.int64
   let resolve x y =  Int64.of_int 0
   let merge3 ~ancestor x y = Int64.of_int 0
@@ -33,10 +32,10 @@ end in
 
  let module StringKey = struct
     include String
-    let to_string (s:t):t = s
+    let to_string  = String.copy
     let compare = Pervasives.compare
     let t = Irmin.Type.string
-    let of_string s = s
+    let of_string = String.copy
 end in 
 
 let module CInit = MkConfig(struct let root = "/tmp/repos/init.git" end) in 

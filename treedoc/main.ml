@@ -32,7 +32,7 @@ let module M = Treedoc.Make(StringAtom) in
 let module Vpst = MInit.Vpst in 
 let print_doc t = 
       begin
-      M.in_order_iter (fun s -> Printf.printf "%s " s) t;
+      MInit.OM.in_order_iter (fun s -> Printf.printf "%s " s) t;
       Printf.printf "\n"
       end  in 
 
@@ -45,14 +45,14 @@ let bob_f : unit Vpst.t =
    * Bob thinks that the fox that jumped is rather wheatish 
    * brown in color. Inserts "wheatish" before "brown".
    *)
-  let t0' = M.insert t0 [M.L;M.L;M.R] "wheatish" in
+  let t0' = MInit.OM.insert t0 [MInit.OM.L;MInit.OM.L;MInit.OM.R] "wheatish" in
   Vpst.liftLwt @@ Lwt_unix.sleep 0.1 >>= fun () ->
   (* Bob syncs with Alice. Gets nothing new. *)
   Vpst.sync_next_version ~v:t0' >>= fun t1 ->
   (*
    * Bob wants the describe this statement as a "thought".
    *)
-  let t1' = M.insert t1 [M.L;M.L;M.L;M.L] "thought:" in
+  let t1' = MInit.OM.insert t1 [MInit.OM.L;MInit.OM.L;MInit.OM.L;MInit.OM.L] "thought:" in
   let _ = Printf.printf "Bob (before syncing with Alice): \n" in
   let _ = print_doc t1' in
   (* Bob syncs with Alice again *)
@@ -72,7 +72,7 @@ let alice_f : unit Vpst.t =
   (*
    * Alice replaces "fox" with "rooster".
    *)
-  let t0' =  M.update t0 [M.L;M.R] "rooster" in
+  let t0' =  MInit.OM.update t0 [MInit.OM.L;MInit.OM.R] "rooster" in
   Vpst.liftLwt @@ Lwt_unix.sleep 0.4 >>= fun () ->
   (* Alice syncs with Bob. Gets Bob's both insertions. *)
   Vpst.sync_next_version ~v:t0' >>= fun t1 ->
@@ -80,7 +80,7 @@ let alice_f : unit Vpst.t =
    * While the fox was wheatish brown, the rooster isn't. 
    * So Alice removes "wheatish".
    *)
-  let t1' = M.update t1 [M.L;M.L;M.R] "" in
+  let t1' = MInit.OM.update t1 [MInit.OM.L;MInit.OM.L;MInit.OM.R] "" in
   Vpst.liftLwt @@ Lwt_unix.sleep 0.1 >>= fun () ->
   (* Syncs with Bob again. Nothing new. *)
   Vpst.sync_next_version ~v:t1' >>= fun t2 ->
@@ -93,7 +93,7 @@ let main () =
   (*
    * The initial document.
    *)
-  let init_doc = M.of_list 
+  let init_doc = MInit.OM.of_list 
              ["a"; "quick"; "brown"; "fox"; "jumped";
               "over"; "a"; "lazy"; "dog"] in
    (*
