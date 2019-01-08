@@ -9,6 +9,12 @@ module type Config = sig
 end
 
 (* MakeVersioned is a functor which takes Config and Atom as arguments *)
+(* Config is defined above *)
+(* Mvector_list contains the ATOM module which is passed to the functor *)
+(* It also includes two other modules OM and K *)
+(* OM includes the operations, types defined in the implementation if the vector list module Make *)
+(* K is the module which containes functions for hashing the values and generating the key for the values stored in the Irmin store *)
+(* Irmin.Hash provides user defined hash functions to digest serialized contents *)
 module MakeVersioned (Config: Config) (Atom: Mvector_list.ATOM) = struct
   module OM = Mvector_list.Make(Atom)
   module K = Irmin.Hash.SHA1
@@ -18,7 +24,10 @@ module MakeVersioned (Config: Config) (Atom: Mvector_list.ATOM) = struct
 
   
   type vt = OM.atom list
-
+  
+  (* This module M defines the custom type for Irmin which is build using OCaml list data type *)
+  (* To create a custom type we need type t, vaue t of type Irmin.TYpe.t, function pp for formatting t, of_string for 
+     converting from string to t and a merger function *)
   module M = struct
     module AO_value  = struct
       
@@ -54,19 +63,23 @@ module MakeVersioned (Config: Config) (Atom: Mvector_list.ATOM) = struct
 
     type t = K.t
      
-
+   (* of_adt takes ocaml type and gives Irmin key *)
+   (* A backend store called aostore is created using the function create *)
+   (* Using the add function of the append-only store, the value is added to the store *)
    let of_adt (a:OM.t) : t Lwt.t  =
       let aostore = AO_store.create () in 
       let aostore_add value = 
           aostore >>= (fun ao_store -> AO_store.add ao_store value) in 
           aostore_add =<< Lwt.return (a)
-
-      let rec to_adt (k:t) : OM.t Lwt.t =
+   
+   (* to_adt gives the raw value that was associated with the key k in the store *)
+   let rec to_adt (k:t) : OM.t Lwt.t =
       AO_store.create () >>= fun ao_store ->
       AO_store.find ao_store k >>= fun t ->
       let t = from_just t in
       Lwt.return (t)
-
+    
+    (* Value t of type Irmin.Type.t *)
     let t = K.t
 
     let pp = K.pp
@@ -76,6 +89,7 @@ module MakeVersioned (Config: Config) (Atom: Mvector_list.ATOM) = struct
     (* merge function merges old, v1_k and v2_k *)
     (* Irmin.Merge.promise t is a promise containing a value of type t *)
     (* using the to_adt, old_k, v1_k and v2_k is converted to the OCaml data type *)
+    (* Then the merge fucntion from the OM module is being called on oldv, v1 and v2 *)
     let rec merge ~(old:t Irmin.Merge.promise) v1_k v2_k =
       let open Irmin.Merge.Infix in
       old () >>=* fun old_k ->
@@ -91,6 +105,7 @@ module MakeVersioned (Config: Config) (Atom: Mvector_list.ATOM) = struct
   end
 
   (* Store is defined as follows which is a module *)
+  (* M is the module which is passed as content to the Irmin store *)
   module BC_store = struct
     module Store = Irmin_unix.Git.FS.KV(M)
     module Sync = Irmin.Sync(Store)
@@ -100,11 +115,15 @@ module MakeVersioned (Config: Config) (Atom: Mvector_list.ATOM) = struct
     let init ?root ?bare () =
       let config = Irmin_git.config Config.root in
       Store.Repo.v config
-
+    
+    (* A persistent store based on master branch *)
+    (* repo is the repository containing the type t *)
     let master (repo:Store.repo) = Store.master repo
 
+    (* clones the source to the destination branch *)
     let clone t name = Store.clone t name
-
+    
+    (* Gets the store based on the branch name *)
     let get_branch r ~branch_name = Store.of_branch r branch_name
 
     let merge s ~into = Store.merge s ~into
@@ -130,7 +149,7 @@ end = struct
     (* st is a record type with fields as master, local, name and next_id *)
     type st = {master   : store;
                local    : store;
-               name     : string;
+               name     : string; 
                next_id  : int}
     type 'a t = st -> ('a * st) Lwt.t
 
