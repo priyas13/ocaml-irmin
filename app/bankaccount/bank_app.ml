@@ -40,7 +40,7 @@ let rec op_transform b p q = match p, q with
                       | [Withdraw x], [Withdraw y] -> if (x + y) > get_balance b then if x > y then [], [Deposit (x-y)]
                                                                                                else if x < y then [Deposit (y-x)], []
                                                                                                              else [], []
-                                                                                 else [Withdraw y], [Withdraw x]
+                                                                                 else [Withdraw x], [Withdraw y]
                       | [Deposit x], [Deposit y] -> [Deposit x], [Deposit y]
                       | [Deposit x], [Withdraw y] -> [Deposit x], [Withdraw y] 
                       | x, y -> op_transform b p q
