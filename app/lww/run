@@ -1,0 +1,1 @@
+ocamlfind ocamlopt lww_app.ml -o lww -package ezjsonm,irmin-unix,irmin-http,lwt.unix -linkpkg -thread
