@@ -24,6 +24,8 @@ let mkaststr str = {txt=str; loc = !Ast_helper.default_loc}
    [%dali_to_adt]
 *)
 
+(* mk_dali_mapper *)
+(* This function takes care of all the mapping needed  *)
 let mk_dali_mapper (mn, mts, mtd, jc, ofa, toa, imr, msigf, mstrf, mergf, mmodi, bcstoi) = {
   default_mapper with 
   module_expr = (fun mapper t ->
@@ -32,6 +34,7 @@ let mk_dali_mapper (mn, mts, mtd, jc, ofa, toa, imr, msigf, mstrf, mergf, mmodi,
       | { pmod_desc = Pmod_extension ({txt = "dali_mmod_inst"}, _) } -> mmodi
       | { pmod_desc = Pmod_extension ({txt = "dali_bcsto_inst"}, _) } -> bcstoi
       | x -> default_mapper.module_expr mapper x);
+  (* mapping of the type signatures *)
   typ = (fun mapper t ->
       match t with
       | { ptyp_desc = Ptyp_extension ({txt = "dali_adt_typesig"}, _) } -> mts
@@ -49,6 +52,7 @@ let mk_dali_mapper (mn, mts, mtd, jc, ofa, toa, imr, msigf, mstrf, mergf, mmodi,
       | { pstr_desc = Pstr_extension (({txt = "dali_mergeable_functs"}, p), _) } ->
         mapper.structure_item mapper (mergf p) 
       | x -> default_mapper.structure_item mapper x);
+  (* mapping the of_adt and to_adt functions *)
   expr = (fun mapper e ->
       match e with
       | { pexp_desc = Pexp_extension ({txt = "dali_of_adt"}, _)} -> ofa
@@ -110,6 +114,8 @@ let dali_mmodstr_functs tds td mn p =
       }
   | _ -> assert false
 
+(* here p is a structure_item whose description denoted by ptr_desc field is matched against structure_item_desc *)
+(* If the structure is a module then we create a structure which is a module structure with module binding *)
 let dali_mergeable_functs tds td mn p =
   match p with
   | PStr [ {pstr_desc = Pstr_module x}] ->
@@ -155,9 +161,11 @@ let dali_bcsto_inst tds td mn =
        | _ -> assert false) in 
   aux td.ptype_params
 
+(* here mn is the module description and ident function creates a alue expression for the module language *)
 let dali_adt_mod mn =
   Ast_helper.Mod.ident (Location.mkloc mn !Ast_helper.default_loc)
 
+(* *)
 let dali_adt_typesig tds td mn  =
   let open Ast_helper in
   let type_mapper { ptyp_desc = desc } =
@@ -231,7 +239,7 @@ let dali_madt_typedef tds td mn =
           | x -> default_mapper.type_declaration other_td_mapper x);
     } in
   let madts = List.map (type_dec_mapper.type_declaration type_dec_mapper) tds in 
-  (Ast_helper.Str.type_ @@ Nonrecursive, madts) 
+  ((Ast_helper.Str.type_ @@ Nonrecursive, madts), madts)
 
 
 let dali_of_adt tds td mn =
@@ -460,9 +468,8 @@ let dali_derive tds td dts mn  =
   let mergeable_functs = dali_mergeable_functs tds td mn in
   let mmod_inst = dali_mmod_inst tds td mn in
   let bcsto_inst = dali_bcsto_inst tds td mn in
-  let dali_mapper = mk_dali_mapper 
-      (adt_mod, adt_typesig, madt_typedef, json_convert, of_adt, to_adt, imodstr_rename, 
-      mmodsig_functs, mmodstr_functs, mergeable_functs, mmod_inst, bcsto_inst) in
+  let dali_mapper = (mk_dali_mapper (adt_mod, adt_typesig, madt_typedef, json_convert, of_adt, to_adt, imodstr_rename, 
+      mmodsig_functs, mmodstr_functs, mergeable_functs, mmod_inst, bcsto_inst)) in
   dali_mapper.structure dali_mapper (Parse.implementation @@ Lexing.from_string template)
 
 let using_dali_mapper argv = 
