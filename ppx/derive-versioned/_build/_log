@@ -1,0 +1,44 @@
+### Starting build.
+# Target: ppx/ppx_dali.ml.depends, tags: { package(compiler-libs.common), package(ppx_blob), package(ppx_tools), package(ppx_tools.metaquot), warn(@5@8@10@11@12@14@23@24@26@29@40), bin_annot, debug, extension:ml, file:ppx/ppx_dali.ml, ocaml, ocamldep, quiet, safe_string, traverse }
+ocamlfind ocamldep -package compiler-libs.common -package ppx_tools -package ppx_tools.metaquot -package ppx_blob -modules ppx/ppx_dali.ml > ppx/ppx_dali.ml.depends
+# Target: ppx/derive_ezjsonm.ml.depends, tags: { package(compiler-libs.common), package(ppx_blob), package(ppx_tools), package(ppx_tools.metaquot), warn(@5@8@10@11@12@14@23@24@26@29@40), bin_annot, debug, extension:ml, file:ppx/derive_ezjsonm.ml, ocaml, ocamldep, quiet, safe_string, traverse }
+ocamlfind ocamldep -package compiler-libs.common -package ppx_tools -package ppx_tools.metaquot -package ppx_blob -modules ppx/derive_ezjsonm.ml > ppx/derive_ezjsonm.ml.depends # cached
+# Target: ppx/derive_ezjsonm.cmo, tags: { package(compiler-libs.common), package(ppx_blob), package(ppx_tools), package(ppx_tools.metaquot), warn(@5@8@10@11@12@14@23@24@26@29@40), bin_annot, byte, compile, debug, extension:cmo, extension:ml, file:ppx/derive_ezjsonm.cmo, file:ppx/derive_ezjsonm.ml, implem, ocaml, quiet, safe_string, traverse }
+ocamlfind ocamlc -c -g -bin-annot -safe-string -package compiler-libs.common -package ppx_tools -package ppx_tools.metaquot -package ppx_blob -w @5@8@10@11@12@14@23@24@26@29@40 -I ppx -o ppx/derive_ezjsonm.cmo ppx/derive_ezjsonm.ml # cached
+# Target: ppx/ppx_dali.cmo, tags: { package(compiler-libs.common), package(ppx_blob), package(ppx_tools), package(ppx_tools.metaquot), warn(@5@8@10@11@12@14@23@24@26@29@40), bin_annot, byte, compile, debug, extension:cmo, extension:ml, file:ppx/ppx_dali.cmo, file:ppx/ppx_dali.ml, implem, ocaml, quiet, safe_string, traverse }
+ocamlfind ocamlc -c -g -bin-annot -safe-string -package compiler-libs.common -package ppx_tools -package ppx_tools.metaquot -package ppx_blob -w @5@8@10@11@12@14@23@24@26@29@40 -I ppx -o ppx/ppx_dali.cmo ppx/ppx_dali.ml
++ ocamlfind ocamlc -c -g -bin-annot -safe-string -package compiler-libs.common -package ppx_tools -package ppx_tools.metaquot -package ppx_blob -w @5@8@10@11@12@14@23@24@26@29@40 -I ppx -o ppx/ppx_dali.cmo ppx/ppx_dali.ml
+findlib: [WARNING] Interface topdirs.cmi occurs in several directories: /Users/swarnpriya/.opam/4.05.0/lib/ocaml, /Users/swarnpriya/.opam/4.05.0/lib/ocaml/compiler-libs
+File "ppx/ppx_dali.ml", line 72, characters 39-55:
+Warning 3: deprecated: String.uppercase
+Use String.uppercase_ascii instead.
+File "ppx/ppx_dali.ml", line 81, characters 46-62:
+Warning 3: deprecated: String.uppercase
+Use String.uppercase_ascii instead.
+File "ppx/ppx_dali.ml", line 104, characters 42-58:
+Warning 3: deprecated: String.uppercase
+Use String.uppercase_ascii instead.
+File "ppx/ppx_dali.ml", line 108, characters 73-89:
+Warning 3: deprecated: String.uppercase
+Use String.uppercase_ascii instead.
+File "ppx/ppx_dali.ml", line 125, characters 42-58:
+Warning 3: deprecated: String.uppercase
+Use String.uppercase_ascii instead.
+File "ppx/ppx_dali.ml", line 141, characters 65-81:
+Warning 3: deprecated: String.uppercase
+Use String.uppercase_ascii instead.
+File "ppx/ppx_dali.ml", line 153, characters 65-81:
+Warning 3: deprecated: String.uppercase
+Use String.uppercase_ascii instead.
+File "ppx/ppx_dali.ml", line 166, characters 49-65:
+Warning 3: deprecated: String.uppercase
+Use String.uppercase_ascii instead.
+File "ppx/ppx_dali.ml", line 187, characters 68-84:
+Warning 3: deprecated: String.uppercase
+Use String.uppercase_ascii instead.
+File "ppx/ppx_dali.ml", line 464, characters 29-41:
+Error: This expression has type
+         Parsetree.type_declaration list -> Parsetree.structure_item
+       but an expression was expected of type Parsetree.structure_item
+Command exited with code 2.
+# Compilation unsuccessful.

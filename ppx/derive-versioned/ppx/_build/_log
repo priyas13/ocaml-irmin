@@ -1,0 +1,12 @@
+### Starting build.
+# Target: ppx_dali.ml.depends, tags: { extension:ml, file:ppx_dali.ml, ocaml, ocamldep, quiet }
+ocamlfind ocamldep -modules ppx_dali.ml > ppx_dali.ml.depends
+# Target: derive_ezjsonm.ml.depends, tags: { extension:ml, file:derive_ezjsonm.ml, ocaml, ocamldep, quiet }
+ocamlfind ocamldep -modules derive_ezjsonm.ml > derive_ezjsonm.ml.depends
+# Target: derive_ezjsonm.cmo, tags: { byte, compile, extension:cmo, extension:ml, file:derive_ezjsonm.cmo, file:derive_ezjsonm.ml, implem, ocaml, quiet }
+ocamlfind ocamlc -c -o derive_ezjsonm.cmo derive_ezjsonm.ml
++ ocamlfind ocamlc -c -o derive_ezjsonm.cmo derive_ezjsonm.ml
+File "derive_ezjsonm.ml", line 1, characters 5-15:
+Error: Unbound module Ast_helper
+Command exited with code 2.
+# Compilation unsuccessful.
