@@ -160,11 +160,13 @@ module MakeVersioned (Config: Config) (Atom: Set_imp.ATOM) = struct
     module Sync = Irmin.Sync(Store)
 
     type t = Store.t
-
+    
+    (* Config is used configure Irmin repository based on store *)
     let init ?root ?bare () =
       let config = Irmin_git.config Config.root in
       Store.Repo.v config
-
+    
+    (* Store.master gets a handler on the master branch in the repository repo *)
     let master (repo:Store.repo) = Store.master repo
 
     let clone t name = Store.clone t name
