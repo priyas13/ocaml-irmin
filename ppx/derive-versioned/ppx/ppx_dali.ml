@@ -26,7 +26,7 @@ let mkaststr str = {txt=str; loc = !Ast_helper.default_loc}
 
 (* mk_dali_mapper *)
 (* This function takes care of all the mapping needed  *)
-(* all the arguments provided are different types *)
+(* all the arguments provided are of different types *)
 let mk_dali_mapper (mn, mts, mtd, jc, ofa, toa, imr, msigf, mstrf, mergf, mmodi, bcstoi) = {
   default_mapper with 
   module_expr = (fun mapper t ->
@@ -63,8 +63,11 @@ let mk_dali_mapper (mn, mts, mtd, jc, ofa, toa, imr, msigf, mstrf, mergf, mmodi,
 
 (* It renames the module by adding an I to it. For example, Canvas module is Icanvas module in the transformed code *)
 (* Here mn is the module name *)
+(* tds is the list of type declarations *)
+(* p is the structure where if it is a module then concatenate "I" in the module name *)
 (* AST_helped.Str.module_ creates a module structure with module binding name field as I added to it *)
 (* So basically this whole function changes the module name from Canvas to Icanvas *)
+(* It is a arrow type of payload -> stucture_item *)
 let dali_imodstr_rename tds td mn p =
   let mn = String.concat "." (Longident.flatten mn) in
   match p with
@@ -72,7 +75,7 @@ let dali_imodstr_rename tds td mn p =
     Ast_helper.Str.module_ {x with pmb_name = mkaststr @@ "I" ^ mn }
   | _ -> assert false
 
-(* *)
+(* It returns a structure_item type *)
 let dali_mmodsig_functs tds td mn p =
   let mn = String.concat "." (Longident.flatten mn) in
   match p with
@@ -479,7 +482,7 @@ let dali_json_convert madt tds =
 (* mergeable_functs is payload -> structure_item type *)
 (* mmod_inst is module_expr type *)
 (* bcsto_inst is a module_expr type *)
-let dali_derive tds td dts mn p  =
+let dali_derive tds td dts mn   =
    (*let template = "" in *)
   let template = [%blob "ppx/dali_template.ml"] in
   let adt_mod = dali_adt_mod mn in
@@ -488,10 +491,10 @@ let dali_derive tds td dts mn p  =
   let json_convert = dali_json_convert madt dts in
   let of_adt = dali_of_adt tds td mn in
   let to_adt = dali_to_adt tds td mn in
-  let imodstr_rename = dali_imodstr_rename tds td mn p  in
-  let mmodsig_functs = dali_mmodsig_functs tds td mn p in
-  let mmodstr_functs = dali_mmodstr_functs tds td mn p in
-  let mergeable_functs = dali_mergeable_functs tds td mn p in
+  let imodstr_rename = dali_imodstr_rename tds td mn   in
+  let mmodsig_functs = dali_mmodsig_functs tds td mn  in
+  let mmodstr_functs = dali_mmodstr_functs tds td mn  in
+  let mergeable_functs = dali_mergeable_functs tds td mn  in
   let mmod_inst = dali_mmod_inst tds td mn in
   let bcsto_inst = dali_bcsto_inst tds td mn in
   let dali_mapper = mk_dali_mapper (adt_mod, adt_typesig, madt_typedef, 

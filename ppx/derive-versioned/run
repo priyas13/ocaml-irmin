@@ -1,0 +1,3 @@
+
+ocamlbuild -use-ocamlfind ppx/ppx_dali.native
+
