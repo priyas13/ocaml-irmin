@@ -26,6 +26,7 @@ let mkaststr str = {txt=str; loc = !Ast_helper.default_loc}
 
 (* mk_dali_mapper *)
 (* This function takes care of all the mapping needed  *)
+(* all the arguments provided are different types *)
 let mk_dali_mapper (mn, mts, mtd, jc, ofa, toa, imr, msigf, mstrf, mergf, mmodi, bcstoi) = {
   default_mapper with 
   module_expr = (fun mapper t ->
@@ -60,6 +61,10 @@ let mk_dali_mapper (mn, mts, mtd, jc, ofa, toa, imr, msigf, mstrf, mergf, mmodi,
       | x -> default_mapper.expr mapper x);
 }
 
+(* It renames the module by adding an I to it. For example, Canvas module is Icanvas module in the transformed code *)
+(* Here mn is the module name *)
+(* AST_helped.Str.module_ creates a module structure with module binding name field as I added to it *)
+(* So basically this whole function changes the module name from Canvas to Icanvas *)
 let dali_imodstr_rename tds td mn p =
   let mn = String.concat "." (Longident.flatten mn) in
   match p with
@@ -67,12 +72,15 @@ let dali_imodstr_rename tds td mn p =
     Ast_helper.Str.module_ {x with pmb_name = mkaststr @@ "I" ^ mn }
   | _ -> assert false
 
+(* *)
 let dali_mmodsig_functs tds td mn p =
   let mn = String.concat "." (Longident.flatten mn) in
   match p with
   | PStr [ {pstr_desc = Pstr_modtype x}] ->
     Ast_helper.Str.modtype 
       { x with 
+        (* Always the module type name is given in capital letter 
+         For example Mcanvas of type MCANVAS *)
         pmtd_name = (mkaststr @@ "M" ^ String.uppercase mn); 
         pmtd_type = (match x.pmtd_type with
             | Some typ ->
@@ -91,6 +99,7 @@ let dali_mmodsig_functs tds td mn p =
       }
   | _ -> assert false
 
+(* Module structure *)
 let dali_mmodstr_functs tds td mn p =
   let mn = String.concat "." (Longident.flatten mn) in
   match p with
@@ -161,7 +170,7 @@ let dali_bcsto_inst tds td mn =
        | _ -> assert false) in 
   aux td.ptype_params
 
-(* here mn is the module description and ident function creates a alue expression for the module language *)
+(* here mn is the module description and ident function creates a value expression for the module language *)
 let dali_adt_mod mn =
   Ast_helper.Mod.ident (Location.mkloc mn !Ast_helper.default_loc)
 
@@ -239,7 +248,7 @@ let dali_madt_typedef tds td mn =
           | x -> default_mapper.type_declaration other_td_mapper x);
     } in
   let madts = List.map (type_dec_mapper.type_declaration type_dec_mapper) tds in 
-  ((Ast_helper.Str.type_ @@ Nonrecursive, madts), madts)
+  ((Ast_helper.Str.type_ Nonrecursive madts), madts)
 
 
 let dali_of_adt tds td mn =
@@ -446,6 +455,7 @@ let dali_to_adt tds td mn =
     | Ptype_open -> assert false in
   kind_mapper td "t"
 
+(* dali_json_convert returns a structure item *)
 let dali_json_convert madt tds =
   let open Ast_helper in
   let to_json_stris = List.map Derive_ezjsonm.derive_to_json [tds; madt] in
@@ -453,8 +463,24 @@ let dali_json_convert madt tds =
   let jsonc_struct = to_json_stris @ of_json_stris in
   Str.module_ @@ Mb.mk (mkaststr "JsonConvert") (Mod.structure jsonc_struct)
 
-let dali_derive tds td dts mn  =
-  (*let template = "" in *)
+(* mn is module type name *)
+(* tds is the list of type declarations *)
+(* td is a type declaration *)
+(* p is the structure_item *)
+(* adt_mod is module_expr type *)
+(* adt_typesig is a core_type type *)
+(* madt_typedef is a structure_item type and madt is the list of type declarations  *)
+(* json_convert is a structure_item *)
+(* of_adt is expression type *)
+(* to_adt is expression type *)
+(* imodstr_rename is payload -> structure_item type *)
+(* mmodsig_functs is payload -> structure_item type *)
+(* mmodstr_functs is payload -> structure_item type *)
+(* mergeable_functs is payload -> structure_item type *)
+(* mmod_inst is module_expr type *)
+(* bcsto_inst is a module_expr type *)
+let dali_derive tds td dts mn p  =
+   (*let template = "" in *)
   let template = [%blob "ppx/dali_template.ml"] in
   let adt_mod = dali_adt_mod mn in
   let adt_typesig = dali_adt_typesig tds td mn in
@@ -462,14 +488,15 @@ let dali_derive tds td dts mn  =
   let json_convert = dali_json_convert madt dts in
   let of_adt = dali_of_adt tds td mn in
   let to_adt = dali_to_adt tds td mn in
-  let imodstr_rename = dali_imodstr_rename tds td mn in
-  let mmodsig_functs = dali_mmodsig_functs tds td mn in
-  let mmodstr_functs = dali_mmodstr_functs tds td mn in
-  let mergeable_functs = dali_mergeable_functs tds td mn in
+  let imodstr_rename = dali_imodstr_rename tds td mn p  in
+  let mmodsig_functs = dali_mmodsig_functs tds td mn p in
+  let mmodstr_functs = dali_mmodstr_functs tds td mn p in
+  let mergeable_functs = dali_mergeable_functs tds td mn p in
   let mmod_inst = dali_mmod_inst tds td mn in
   let bcsto_inst = dali_bcsto_inst tds td mn in
-  let dali_mapper = (mk_dali_mapper (adt_mod, adt_typesig, madt_typedef, json_convert, of_adt, to_adt, imodstr_rename, 
-      mmodsig_functs, mmodstr_functs, mergeable_functs, mmod_inst, bcsto_inst)) in
+  let dali_mapper = mk_dali_mapper (adt_mod, adt_typesig, madt_typedef, 
+    json_convert, of_adt, to_adt, imodstr_rename, 
+      mmodsig_functs, mmodstr_functs, mergeable_functs, mmod_inst, bcsto_inst) in 
   dali_mapper.structure dali_mapper (Parse.implementation @@ Lexing.from_string template)
 
 let using_dali_mapper argv = 
