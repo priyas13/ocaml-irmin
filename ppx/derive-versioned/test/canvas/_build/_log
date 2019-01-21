@@ -1,0 +1,12 @@
+### Starting build.
+Backtrace:
+                      - Failed to build the target ppx_dali.native
+                          - Building ppx_dali.native:
+                              - Building ppx_dali.cmx:
+                                  - Failed to build all of these:
+                                      - Building ppx_dali.ml:
+                                          - Failed to build all of these:
+                                              - Building ppx_dali.mly
+                                              - Building ppx_dali.mll
+                                      - Building ppx_dali.mlpack
+# Compilation unsuccessful.

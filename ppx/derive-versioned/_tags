@@ -5,4 +5,4 @@ true:   debug
 "test": include
 
 <ppx/*.{ml,byte,native}>: package(compiler-libs.common), package(ppx_tools), package(ppx_tools.metaquot), package(ppx_blob)
-<test/*.{ml,byte,native}>: use_dali, package(irmin.unix), package(lwt)
+<test/*.{ml,byte,native}>: use_dali, package(irmin-unix), package(lwt)
