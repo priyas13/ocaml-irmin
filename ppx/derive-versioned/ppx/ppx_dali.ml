@@ -251,7 +251,7 @@ let dali_madt_typedef tds td mn =
           | x -> default_mapper.type_declaration other_td_mapper x);
     } in
   let madts = List.map (type_dec_mapper.type_declaration type_dec_mapper) tds in 
-  ((Ast_helper.Str.type_ Nonrecursive madts), madts)
+  ((Ast_helper.Str.type_ Recursive madts), madts)
 
 
 let dali_of_adt tds td mn =
@@ -508,7 +508,7 @@ let using_dali_mapper argv =
     structure = fun mapper s ->
       let rec aux s dt = match s with
         | [] -> raise_errorf "[dalify]: Unavailable dalify-ing type."
-        | { pstr_desc = Pstr_type (Nonrecursive, tds) } :: r ->
+        | { pstr_desc = Pstr_type (Recursive, tds) } :: r ->
           let rec do_dalify td = match td with
             | [] -> aux r dt
             | { ptype_attributes = [({txt = "derive"}, p) ]; } as td :: _ ->

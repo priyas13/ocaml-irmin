@@ -4,5 +4,7 @@ true:   debug
 "ppx":  include
 "test": include
 
-<ppx/*.{ml,byte,native}>: package(compiler-libs.common), package(ppx_tools), package(ppx_tools.metaquot), package(ppx_blob)
-<test/*.{ml,byte,native}>: use_dali, package(irmin-unix), package(lwt)
+<ppx/*.{ml,byte,native}>: package(compiler-libs.common), package(ppx_tools), package(ppx_tools.metaquot), package(ppx_blob), package(ppx_derivers), package(ocaml-migrate-parsetree)
+<test/*.{ml,byte,native}>: use_dali, package(irmin-unix), package(lwt), package(oUnit ppx_tools compiler-libs.common result ppx_derivers ocaml-migrate-parsetree)
+
+

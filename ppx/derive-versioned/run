@@ -1,3 +1,7 @@
-
+(* To compile the ppx code and it builds the .native code *)
 ocamlbuild -use-ocamlfind ppx/ppx_dali.native
+
+(* To run the ppx rewriter on the code to produce the transformed code *)
+(* Here example.ml is the code we want to pass to the rewriter and derived.ml will contain the transformed code *)
+ocamlfind ppx_tools/rewriter ./ppx_dali.native example.ml > derived.ml
 
