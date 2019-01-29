@@ -1,0 +1,10 @@
+true:   warn(@5@8@10@11@12@14@23@24@26@29@40), bin_annot, safe_string
+true:   debug
+
+"ppx":  include
+"test": include
+
+<ppx/*.{ml,byte,native}>: package(compiler-libs.common), package(ppx_tools), package(ppx_tools.metaquot), package(ppx_blob), package(ppx_derivers), package(ocaml-migrate-parsetree) , package(irmin-unix), package(lwt), package(irmin)
+<test/*.{ml,byte,native}>: use_dali, package(irmin-unix), package(lwt), package(oUnit ppx_tools compiler-libs.common result ppx_derivers ocaml-migrate-parsetree)
+
+
