@@ -420,6 +420,26 @@ module IMake =
             let read t (p : path) = Store.find t p
             let string_of_path p = String.concat "/" p
             let info s = Irmin_unix.info "[repo %s] %s" Config.root s
+            let rec update ?msg  t (p : path) (v : BC_value.t) =
+              let msg =
+                match msg with
+                | Some s -> s
+                | None -> "Setting " ^ (string_of_path p) in
+              let fname_of_hash hsh =
+                String.sub (Fmt.to_to_string Irmin.Hash.SHA1.pp hsh) 0 7 in
+              let link_to_tree k =
+                (AO_store.create ()) >>=
+                  (fun ao_store ->
+                     (AO_store.find ao_store k) >>=
+                       (fun vop ->
+                          let v_k = from_just vop "BC_store.update" in
+                          let path_k = [fname_of_hash k] in
+                          update t path_k v_k)) in
+              (match v with
+               | N a0 -> Lwt.return ()
+               | B a0 ->
+                   (fun m k -> m >>= fun () -> link_to_tree k) (Lwt.return ()))
+                >>= (fun () -> Store.set t p v ~info:(info msg))
           end
         module Vpst :
           sig
