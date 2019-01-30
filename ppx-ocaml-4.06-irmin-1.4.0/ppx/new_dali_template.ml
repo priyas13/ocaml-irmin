@@ -136,7 +136,7 @@
 
     let info s = Irmin_unix.info "[repo %s] %s" Config.root s
 
-    (*let rec update ?msg t (p:path) (v:BC_value.t) = 
+    let rec update ?msg t (p:path) (v:BC_value.t) = 
       let msg = match msg with
         | Some s -> s
         | None -> "Setting "^(string_of_path p) in
@@ -147,7 +147,8 @@
         AO_store.find ao_store k >>= fun vop ->
         let v_k = from_just vop "BC_store.update" in
         let path_k = [fname_of_hash k] in
-        update t path_k v_k in (*[%%update_adt]*)
+        update t path_k v_k in [%dali_update_adt] >>= fun () ->
+        Store.set t p v ~info:(info msg)
       (*(match v with
         | N _  -> Lwt.return ()
         | B {tl_t; tr_t; bl_t; br_t} -> 
@@ -156,7 +157,7 @@
                         link_to_tree k) 
             (Lwt.return ())
             [tl_t; tr_t; bl_t; br_t]) >>= fun () ->
-      Store.set t p v ~info:(info msg)*)*)
+      Store.set t p v ~info:(info msg)*)
   end]
 
     [%%dali_mergeable_functs module Vpst : sig
