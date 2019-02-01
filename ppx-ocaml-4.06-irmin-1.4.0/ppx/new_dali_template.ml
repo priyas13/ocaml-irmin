@@ -25,7 +25,8 @@
           type madt = t
           type t = madt
           (* This function will create the ppx type extension for Irmin *)
-          [%%dali_irmin_convert]
+          (*[%%dali_irmin_convert]*)
+          [%%dali_json_convert]
 
           let pp = Irmin.Type.pp_json ~minify:false t
     

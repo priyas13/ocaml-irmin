@@ -23,53 +23,64 @@ let mkaststr str = {txt=str; loc = !Ast_helper.default_loc}
                                | Pcstr_tuple ct' -> ct'
                                | Pcstr_record rt' -> invalid_arg "Derive.get_core_list" 
 
-
-let derive_to_irmin_type (tds: type_declaration list) = 
-	let open Irmin.Type in 
-	(* here t is a type declaration *)
-	(* the name is same as the type name defined in the functor module above *)
-	let mk_to_irmin_name t = 
-    (* ptype_name field of t is to_json *)
+(* derive_to_json takes a list of type declarations as argument *)
+(* it is a function for producing the AST of the json value of the type *)
+(* t is any type *)
+let derive_to_irmin (tds:type_declaration list) =
+  (* t is here a type declaration *)
+  let mk_to_irmin_name t = 
+    (* ptype_name field of t is the type name *)
     (* ^ concatenates the name with _to_json *)
-    (* Because we are converting the type to json, hence we concatenate the type name of the declaration with to_json *)
-    t.ptype_name.txt  in
-    (* here ctd is the type declaration record *)
+    (* Because we are converting the type to json, hence we concatenate the type name of the declaration with to_json. The function name is like t_to_json *)
+    t.ptype_name.txt in
+    (* here ctd is the type declaration *)
   let rec kind_mapper ctd =
-  (* here tt is the core_type record which contains ptyp_desc, ptyp_loc and ptyp_attributes *)
+  (* here tt is the type expression which contains ptyp_desc, ptyp_loc and ptyp_attributes *)
   (* ptyp_desc for the core type tt is matched against each constructor *)
   (* a is the value *)
-    let type_to_to_irmin_type_value tt a =
+    let type_to_to_irmin_expr tt a =
       (match tt.ptyp_desc with
         (* Here n is a type and t is the string. Longident.flatten n returns the string of type n *)
         (* evar a creates the Exp.ident with the text and location *)
         (* app calls the function on the second argument by yusing E.apply *)
+        (* here the first case is for the recursive type *)
       | Ptyp_constr ({txt = Longident.Ldot (n, "t")}, x) ->
-        let prefix = String.concat "." (Longident.flatten n) ^ "." in
-        app (evar ("Irmin.Type" ^ "." ^ prefix)) [(evar a)]
+        let prefix = "K.t" in 
+        prefix 
       | Ptyp_constr ({txt = n}, x) ->
         let tn = String.concat "." (Longident.flatten n) in
         let prefix = (match tn with
           | "int" -> "Irmin.Type.int64"
-          | "string" -> "Irmin.Type.string"
+          | "string" -> "Irmin.TYpe.string"
           | "char" -> "Irmin.Type.char"
           | x -> x ^ "_") in
-            app (evar ("Irmin.Type" ^ "." ^ prefix)) [(evar a)]      
-      | Ptyp_var n -> (* TODO *) assert false 
+        prefix
+      | Ptyp_var n -> assert false 
       | _ -> failwith "[derive ezjsonm]: Not implemented.") in
-      (match ctd.ptype_kind with 
-       | Ptype_record l ->
-       (* here l is the list of label declarations which is basically fields in the record *)
-         let plhs = precord ~closed:Closed @@ List.map (fun e -> e.pld_name.txt, pvar e.pld_name.txt) l in 
-         let prhs = 
-           let ttt x = tuple [ (str x.pld_name.txt); (type_to_to_irmin_type_value x.pld_type x.pld_name.txt)] in 
-           let cc = List.map ttt l in 
-            Exp.variant ("|+") (Some (Ast_convenience.list cc)) in 
-            Vb.mk (pvar @@ mk_to_irmin_name ctd) (func [(plhs, prhs)])
-       | Ptype_abstract -> (* TODO *) assert false
-    | Ptype_open -> assert false 
-      | Ptype_variant l -> assert false) in 
-      Str.value Recursive (List.map kind_mapper tds)
-
-
-
+    (match ctd.ptype_kind with
+      (* type_kind of the type declaration ctd is tackled here *)
+      (* type can be a variant type, abstract type, record type etc *)
+      (* First case is if the type is a variant kind where l is the list of constructor_declarations *)
+      (* c is the constructor_declaration *)
+      (* As l is a variant type so it will be made of bunch of constructors *)
+    | Ptype_variant l ->
+      let prhs = evar "a" in 
+        Vb.mk (pvar @@ mk_to_irmin_name ctd) prhs
+    | Ptype_record l ->
+      let prhs = 
+        let ttt x = app (evar "|+") [evar "field"; (str x.pld_name.txt); evar (type_to_to_irmin_expr x.pld_type x.pld_name.txt); lam (pvar "t") (evar ("t." ^ (x.pld_name.txt)))] in
+        let cc = List.map ttt l in
+        let rr = List.map (fun e -> e.pld_name.txt, evar e.pld_name.txt) l in 
+        (*let aa x = pvar (x.pld_name.txt) in*)
+        (*let aa' = List.map aa l in *)
+        let a = pconstr ((List.hd l).pld_name.txt) [] in  
+        let ff = lam a (record rr) in 
+        let rrr = app (evar "record") (List.append [str (mk_to_irmin_name ctd); ff] cc) in 
+        app (evar "|>") [rrr ; (evar "sealr")] in 
+        Vb.mk (pvar @@ mk_to_irmin_name ctd) prhs
+    | Ptype_abstract ->  assert false
+    | Ptype_open -> assert false) in
+  (* Here we are using List.map to map the function kind_mapper to each element of the tds (type declarations) *)
+  (* As we saw before the kind_mapper takes a type declaration as an argument *)
+  Str.value Nonrecursive (List.map kind_mapper tds)
 

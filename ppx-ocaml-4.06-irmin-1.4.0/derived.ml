@@ -17,10 +17,10 @@ module Make =
     type canvas = {
       max_x: int ;
       max_y: int ;
-      t: t }
+      t: t }[@@derive ezjsonm]
     type loc = {
       x: int ;
-      y: int }
+      y: int }[@@derive ezjsonm]
     let blank = N default_pixel
     let plain px = N px
     let new_canvas max_x max_y = { max_x; max_y; t = blank }
@@ -240,14 +240,30 @@ module IMake =
           tr_t: K.t ;
           bl_t: K.t ;
           br_t: K.t }
-        and madt =
+        and t =
           | N of pixel 
           | B of node 
         module AO_value =
           (struct
              type madt = t
              type t = madt
-             [%%dali_irmin_convert ]
+             module IrminConvert =
+               struct
+                 let pixel =
+                   (record "pixel" (fun (r) -> { r; g; b })
+                      ((|+) field "r" Irmin.Type.char (fun t -> t.r))
+                      ((|+) field "g" Irmin.Type.char (fun t -> t.g))
+                      ((|+) field "b" Irmin.Type.char (fun t -> t.b)))
+                     |> sealr
+                 let node =
+                   (record "node" (fun (tl_t) -> { tl_t; tr_t; bl_t; br_t })
+                      ((|+) field "tl_t" K.t (fun t -> t.tl_t))
+                      ((|+) field "tr_t" K.t (fun t -> t.tr_t))
+                      ((|+) field "bl_t" K.t (fun t -> t.bl_t))
+                      ((|+) field "br_t" K.t (fun t -> t.br_t)))
+                     |> sealr
+                 and t = a
+               end
              let pp = Irmin.Type.pp_json ~minify:false t
              let of_string s =
                let decoder = Jsonm.decoder (`String s) in

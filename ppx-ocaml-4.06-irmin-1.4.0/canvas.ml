@@ -16,10 +16,10 @@ t =
   | B of node (* 4 quadrants *)[@@derive versioned]
 
 (* canvas is a record type  -----*)
-type canvas = {max_x:int; max_y:int; t:t}
+type canvas = {max_x:int; max_y:int; t:t} [@@derive ezjsonm]
 
 (* loc represents the location in a canvas which is basically a record type with two entries *)
-type loc = {x:int; y:int}
+type loc = {x:int; y:int} [@@derive ezjsonm]
 
 (* blank is a leaf node with default_pixel *)
 let blank = N default_pixel

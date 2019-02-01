@@ -1,6 +1,5 @@
 module Make  = struct 
 
-
 (* pixel is a record type which consist of parameters r, g and b where all of them are of char type *)
 type pixel = {r:char; g:char; b:char}
 
@@ -11,8 +10,8 @@ let default_pixel = {r=Char.chr 255; g=Char.chr 255; b=Char.chr 255}
 N is a pixel which represents the leaf node 
 B is a tree of quadrants where each part is of type t *)
 type node = {tl_t: t; tr_t: t; 
-          bl_t: t; br_t: t} and 
-t = 
+          bl_t: t; br_t: t} and
+ t = 
   | N of pixel 
   | B of node (* 4 quadrants *)
 
