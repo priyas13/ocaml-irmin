@@ -29,7 +29,7 @@ let mkaststr str = {txt=str; loc = !Ast_helper.default_loc}
 (* mk_dali_mapper *)
 (* This function takes care of all the mapping needed  *)
 (* all the arguments provided are of different types *)
-let mk_dali_mapper (mn, mts, mtd, jc, ofa, toa, ada, rda, uadt, imr, msigf, mstrf, mergf, mmodi, bcstoi) = {
+let mk_dali_mapper (mn, mts, mtd, jc, ofa, toa, ada, rda, (*uadt,*) imr, msigf, mstrf, mergf, mmodi, bcstoi) = {
   default_mapper with 
   module_expr = (fun mapper t ->
       match t with
@@ -44,7 +44,7 @@ let mk_dali_mapper (mn, mts, mtd, jc, ofa, toa, ada, rda, uadt, imr, msigf, mstr
       | x -> default_mapper.typ mapper x);
   structure_item = (fun mapper t ->
       match t with
-      | { pstr_desc = Pstr_extension (({txt = "dali_madt_typedef"}, _), _) } -> mtd
+      | { pstr_desc = Pstr_extension (({txt = "dali_madt_typedef"}, _), _) } -> mapper.structure_item mapper mtd
       | { pstr_desc = Pstr_extension (({txt = "dali_json_convert"}, _), _) } -> jc
       | { pstr_desc = Pstr_extension (({txt = "dali_imodstr_rename"}, p), _) } ->
         mapper.structure_item mapper (imr p) 
@@ -62,7 +62,7 @@ let mk_dali_mapper (mn, mts, mtd, jc, ofa, toa, ada, rda, uadt, imr, msigf, mstr
       | { pexp_desc = Pexp_extension ({txt = "dali_to_adt"}, _)} -> toa
       | { pexp_desc = Pexp_extension ({txt = "dali_add_adt"}, _)} -> ada
       | { pexp_desc = Pexp_extension ({txt = "dali_read_adt"}, _)} -> rda
-      | { pexp_desc = Pexp_extension ({txt = "dali_update_adt"}, _)} -> uadt
+      (*| { pexp_desc = Pexp_extension ({txt = "dali_update_adt"}, _)} -> uadt*)
       | x -> default_mapper.expr mapper x);
 }
 
@@ -82,6 +82,7 @@ let dali_imodstr_rename tds td mn p =
   | _ -> assert false
 
 (* It takes care of module type *)
+(* Signature module *)
 let dali_mmodsig_functs tds td mn p =
   let mn = String.concat "." (Longident.flatten mn) in
   match p with
@@ -214,13 +215,12 @@ let dali_madt_typedef tds td mn =
         match t with
         | { ptyp_desc = Ptyp_var x } -> 
           default_mapper.typ mapper @@ constr (Ast_convenience.lid (String.uppercase_ascii x ^ ".t")) []
-          (* This is the case of type t *)
-        | { ptyp_desc = Ptyp_constr ({ txt = Longident.Lident n }, _) } ->
-          default_mapper.typ mapper @@ 
+          (* This is the case where the type is user defined type, not the abstract type *)
+        | { ptyp_desc = Ptyp_constr ({ txt = Longident.Lident n }, x) } ->
+         default_mapper.typ mapper @@ 
           if n = td.ptype_name.txt then constr (Ast_convenience.lid ("K.t")) []
           else t
-        | {ptyp_desc = Ptyp_constr ({txt = n}, x)} ->
-      t
+        | {ptyp_desc = Ptyp_constr ({txt = n}, x)} ->  t
         | x -> default_mapper.typ mapper x)} in 
   let type_dec_mapper = 
     {   
@@ -229,17 +229,13 @@ let dali_madt_typedef tds td mn =
         (* t is the type declaration *)
           match t with
           | { ptype_attributes = [({txt = "derive"}, _) ]; } -> 
-            (match t.ptype_kind with
-            | Ptype_record l -> { t with ptype_name = t.ptype_name; ptype_params = []; ptype_attributes = [] }
-            | Ptype_variant l -> { t with ptype_name = t.ptype_name; ptype_params = []; ptype_attributes = [] }
-            | Ptype_open -> assert false 
-            | Ptype_abstract -> assert false)
-            (*main_td_mapper.type_declaration main_td_mapper 
-              { t with ptype_name = mkaststr "madt"; ptype_params = []; ptype_attributes = [] }*)
+            (main_td_mapper.type_declaration main_td_mapper 
+              { t with ptype_name = mkaststr "madt"; ptype_params = []; ptype_attributes = [] }) 
           | x -> default_mapper.type_declaration main_td_mapper x);
-    } in
-  let madts = List.map (type_dec_mapper.type_declaration type_dec_mapper) tds in 
-  ((Ast_helper.Str.type_ Recursive madts), madts)
+    } in 
+  let madts = List.map (type_dec_mapper.type_declaration type_dec_mapper) (tds) in 
+  ((Ast_helper.Str.type_ Recursive madts), madts) 
+
 
 
 let dali_match_type tds td mn = 
@@ -254,7 +250,7 @@ let dali_match_type tds td mn =
       match_mapper td
 
   (* match clause in update *)
-  let dali_update_adt tds td mn = 
+  (*let dali_update_adt tds td mn = 
     let open Ast_helper in 
     let open Ast_convenience in 
   (* here tn is a type name and l is the list of type declaration. *)
@@ -350,7 +346,7 @@ let dali_match_type tds td mn =
        | None -> failwith "[dalify] Open abstract types are not supported"
        | _ -> assert false) *)
                    | Ptype_open -> assert false in
-               update_mapper td "a"
+               update_mapper td "a"*)
 
   
 (* dali_add_adt *)
@@ -804,7 +800,7 @@ let dali_json_convert madt tds =
 (* mergeable_functs is payload -> structure_item type *)
 (* mmod_inst is module_expr type *)
 (* bcsto_inst is a module_expr type *)
-let dali_derive s tds td dts mn   =
+let dali_derive tds td dts mn   =
    (*let template = "" in *)
   let template = [%blob "ppx/new_dali_template.ml"] in
   let adt_mod = dali_adt_mod mn in
@@ -815,14 +811,14 @@ let dali_derive s tds td dts mn   =
   let to_adt = dali_to_adt tds td mn in
   let add_adt = dali_add_adt tds td mn in 
   let read_adt = dali_read_adt tds td mn in
-  let up_adt = dali_update_adt tds td mn in 
+  (*let up_adt = dali_update_adt tds td mn in *)
   let imodstr_rename = dali_imodstr_rename tds td mn   in
   let mmodsig_functs = dali_mmodsig_functs tds td mn  in
   let mmodstr_functs = dali_mmodstr_functs tds td mn  in
   let mergeable_functs = dali_mergeable_functs tds td mn  in
   let mmod_inst = dali_mmod_inst tds td mn in
   let bcsto_inst = dali_bcsto_inst tds td mn in
-  let dali_mapper = mk_dali_mapper ( adt_mod, adt_typesig, madt_typedef, json_convert, of_adt, to_adt, add_adt, read_adt, up_adt, 
+  let dali_mapper = mk_dali_mapper ( adt_mod, adt_typesig, madt_typedef, json_convert, of_adt, to_adt, add_adt, read_adt, (*up_adt, *)
       imodstr_rename, mmodsig_functs, mmodstr_functs, mergeable_functs, mmod_inst, bcsto_inst) in 
   dali_mapper.structure dali_mapper (Parse.implementation @@ Lexing.from_string template)
 
@@ -838,10 +834,10 @@ let using_dali_mapper argv =
             | { ptype_attributes = [({txt = "derive"}, p) ]; } as td :: _ ->
               (match p with
                | PStr [{pstr_desc= Pstr_eval({pexp_desc = Pexp_ident {txt = Longident.Lident "versioned"}}, _); _}] ->
-                 dali_derive s tds td (List.rev dt) mname
+                 dali_derive tds td (List.rev dt) mname
                | PStr [{pstr_desc= Pstr_eval({pexp_desc = Pexp_ident {txt = Longident.Lident "ezjsonm"}}, _); _}] ->
-                 aux r (td::dt)
-               | _ -> assert false) 
+                 aux r (td :: dt)
+               | _ -> assert false)
             | x :: r -> do_dalify r in
           do_dalify tds
         | x :: r -> aux r dt in

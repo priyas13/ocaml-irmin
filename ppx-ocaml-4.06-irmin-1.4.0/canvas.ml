@@ -1,25 +1,28 @@
-module Make  = struct 
+ module Make  = struct 
+
+
 
 (* pixel is a record type which consist of parameters r, g and b where all of them are of char type *)
 type pixel = {r:char; g:char; b:char} [@@derive ezjsonm]
 
-(* default_pixel is a variable which represents the default pixel value *)
-let default_pixel = {r=Char.chr 255; g=Char.chr 255; b=Char.chr 255}
 
 (* type t is defines as follows which consist of two constructors
 N is a pixel which represents the leaf node 
 B is a tree of quadrants where each part is of type t *)
 type node = {tl_t: t; tr_t: t; 
-          bl_t: t; br_t: t} and 
+          bl_t: t; br_t: t}  and 
 t = 
   | N of pixel 
   | B of node (* 4 quadrants *)[@@derive versioned]
 
-(* canvas is a record type  -----*)
-type canvas = {max_x:int; max_y:int; t:t} [@@derive ezjsonm]
-
-(* loc represents the location in a canvas which is basically a record type with two entries *)
 type loc = {x:int; y:int} [@@derive ezjsonm]
+
+(* canvas is a record type  -----*)
+type canvas = {max_x:int; max_y:int; t:t} 
+
+
+(* default_pixel is a variable which represents the default pixel value *)
+let default_pixel = {r=Char.chr 255; g=Char.chr 255; b=Char.chr 255}
 
 (* blank is a leaf node with default_pixel *)
 let blank = N default_pixel
@@ -207,7 +210,7 @@ let print c =
                (Char.code px.r) (Char.code px.g) (Char.code px.b)
         else ()
     done
-  done
+  done 
 
 end [@@derive_versioned]
 
@@ -234,5 +237,4 @@ and so on the rest of the functions defined in main *)
   let _ = print c' in
     ();;*)
 
-(* main ();; *) 
-
+(* main ();; *)
