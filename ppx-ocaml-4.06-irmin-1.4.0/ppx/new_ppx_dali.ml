@@ -250,7 +250,7 @@ let dali_match_type tds td mn =
       match_mapper td
 
   (* match clause in update *)
-  (*let dali_update_adt tds td mn = 
+  let dali_update_adt tds td mn = 
     let open Ast_helper in 
     let open Ast_convenience in 
   (* here tn is a type name and l is the list of type declaration. *)
@@ -346,7 +346,7 @@ let dali_match_type tds td mn =
        | None -> failwith "[dalify] Open abstract types are not supported"
        | _ -> assert false) *)
                    | Ptype_open -> assert false in
-               update_mapper td "a"*)
+               update_mapper td "a"
 
   
 (* dali_add_adt *)
