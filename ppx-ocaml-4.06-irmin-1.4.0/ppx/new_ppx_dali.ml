@@ -29,7 +29,7 @@ let mkaststr str = {txt=str; loc = !Ast_helper.default_loc}
 (* mk_dali_mapper *)
 (* This function takes care of all the mapping needed  *)
 (* all the arguments provided are of different types *)
-let mk_dali_mapper (mn, mts, mtd, ic, ict, ofa, toa, ada, rda, (*uadt,*) imr, msigf, mstrf, mergf, mmodi, bcstoi) = {
+let mk_dali_mapper (mn, mts, mtd, ic, ict, ofa, toa, ada, rda, uadt, imr, msigf, mstrf, mergf, mmodi, bcstoi) = {
   default_mapper with 
   module_expr = (fun mapper t ->
       match t with
@@ -63,7 +63,7 @@ let mk_dali_mapper (mn, mts, mtd, ic, ict, ofa, toa, ada, rda, (*uadt,*) imr, ms
       | { pexp_desc = Pexp_extension ({txt = "dali_to_adt"}, _)} -> toa
       | { pexp_desc = Pexp_extension ({txt = "dali_add_adt"}, _)} -> ada
       | { pexp_desc = Pexp_extension ({txt = "dali_read_adt"}, _)} -> rda
-      (*| { pexp_desc = Pexp_extension ({txt = "dali_update_adt"}, _)} -> uadt*)
+      | { pexp_desc = Pexp_extension ({txt = "dali_update_adt"}, _)} -> uadt
       | x -> default_mapper.expr mapper x);
 }
 
@@ -250,72 +250,77 @@ let dali_match_type tds td mn =
       | Ptype_open -> assert false in 
       match_mapper td
 
-  (* match clause in update *)
-  let dali_update_adt tds td mn = 
-    let open Ast_helper in 
-    let open Ast_convenience in 
-  (* here tn is a type name and l is the list of type declaration. *)
+
+let dali_update_adt tds td mn =
+  let open Ast_helper in
+  let open Ast_convenience in
+  let mkp x = x ^ "'" in
+  let mn = String.concat "." (Longident.flatten mn) in
   let rec find_some_type l tn =
     match l with
     | [] -> None
     | x :: y ->
       if x.ptype_name.txt = tn then Some x
       else find_some_type y tn in
-   let rec update_mapper ctd ak = 
-       match ctd.ptype_kind with 
-        | Ptype_variant l -> 
-          let mkarg x = "a" ^ string_of_int x in
-          (*let mkparg x = mkp @@ mkarg x in*)
-          (* c is a constructor in the variant type *)
-          let pat_mapper c = 
-            let name = c.pcd_name.txt in 
-            let c' = c.pcd_args in 
-            let plhs = pconstr name (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) (get_core_list c')) in 
-            let prhs =  (*evar "Lwt.return ()" in *)
-             let rec aux i args allargns = 
-                match args with 
-                 | [] -> evar "Lwt.return ()"
-                 | x :: y -> 
-                     let argn = mkarg i in
-                     match x.ptyp_desc with 
-                       | Ptyp_constr ({txt = Longident.Lident n}, _) ->
-                         (*let argnp = mkparg i in*)
-                         if n = td.ptype_name.txt then 
-                         evar "(fun m k -> m >>= fun () -> link_to_tree k) (Lwt.return ())"
-                         else
-                        let st = find_some_type tds n in
-                         (match st with
-                          | Some p -> evar "(fun m k -> m >>= fun () -> link_to_tree k) (Lwt.return ())"
-                          | None -> aux (i+1) y (argn :: allargns)) 
-                 | _ -> aux (i+1) y (argn :: allargns) in 
-                   aux 0 (get_core_list (c.pcd_args)) [] in
-                   Exp.case plhs prhs in
-                   Exp.match_ (evar "v")  (List.map pat_mapper l)
-    | Ptype_record l -> assert false 
-      (*let plhs = precord @@ List.map (fun e -> e.pld_name.txt, pvar e.pld_name.txt) l in
+  let rec kind_mapper ctd ak =
+    match ctd.ptype_kind with
+    | Ptype_variant l ->
+      let mkarg x = "a" ^ string_of_int x in
+      let mkparg x = mkp @@ mkarg x in
+      let pat_mapper c =
+        (*let name = mn ^ "." ^ c.pcd_name.txt in*)
+        let plhs = pconstr c.pcd_name.txt (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) (get_core_list (c.pcd_args))) in
+        let prhs =
+          let rec aux i args allargns =
+            match args with
+            | [] -> evar "Lwt.return()"
+            | x :: y -> 
+              let argn = mkarg i in
+              match x.ptyp_desc with
+              | Ptyp_constr ({txt = Longident.Lident n}, _) ->
+                let argnp = mkparg i in
+                if n = td.ptype_name.txt then 
+                  app (evar ">>=") [app (evar "read_adt") [evar argn]; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
+                else
+                  let st = find_some_type tds n in
+                  (match st with
+                   | Some t ->
+                     app (evar ">>=") [kind_mapper t argn; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
+                   | None -> aux (i+1) y (argn :: allargns))
+              | _ -> aux (i+1) y (argn :: allargns) in
+          aux 0 (get_core_list (c.pcd_args)) [] in
+        Exp.case plhs prhs in
+      Exp.match_ (evar ak)  (List.map pat_mapper l)
+    | Ptype_record l ->
+      let plhs = precord @@ List.map (fun e -> e.pld_name.txt, pvar e.pld_name.txt) l in
       let prhs = 
         let rec aux args allargns =
           match args with
-          | [] -> evar "Lwt.return ()"
+          | [] ->
+            let a = List.map (fun e -> mn ^ "."^ fst e, evar @@ snd e) @@ List.rev allargns in
+            app (evar "@@") [evar "Lwt.return"; record a]
           | x :: y ->
-            let argn = snd (fst x) in
+            let argn = snd (fst x) in  
+            (*let args' = fst (fst x) in*)
             match (snd x).ptyp_desc with
             | Ptyp_constr ({txt = Longident.Lident n}, _) ->
+              let argnp = mkp argn in
               if n = td.ptype_name.txt then 
-                evar argn
-                (*app (evar ">>=") [app (evar "add_adt") [evar args'; evar argn]; lam (pvar argnp) (aux y ((argn,argnp) :: allargns))]*)
+              let rr = List.map (fun e -> evar e.pld_name.txt) l in 
+              (app (evar "List.fold_left") 
+                (List.append [(lam (pvar "m") (lam (pvar "k") (app (evar ">>=") [evar "m" ; (Exp.fun_ Nolabel None (punit()) (constr "link_to_tree" [(evar "k")]))])))] [(evar "(Lwt.return())") ; list rr]))
+                (* app (evar ">>=") [app (evar "read_adt") [evar args'; evar argn]; lam (pvar argnp) (aux y ((argn,argnp) :: allargns))]*)
               else
                 let st = find_some_type tds n in
                 (match st with
-                 | Some p -> evar argn
-                   (*app (evar ">>=") [update_mapper p argn; lam (pvar argnp) (aux y ((argn,argnp) :: allargns))]*)
+                 | Some t ->
+                   app (evar ">>=") [kind_mapper t argn; lam (pvar argnp) (aux y ((argn,argnp) :: allargns))]
                  | None -> aux y ((argn,argn) :: allargns))
             | _ -> aux y ((argn,argn) :: allargns) in
-        (aux (List.map (fun e -> ("t", e.pld_name.txt), e.pld_type) l) []) in
-        (* here ak is the record *)
-        Exp.match_ (evar ak) [Exp.case plhs prhs]*)
-    | Ptype_abstract -> assert false  
-      (*let matchmaker l =
+        aux (List.map (fun e -> ("t", e.pld_name.txt), e.pld_type) l) [] in
+      Exp.match_ (evar ak) [Exp.case plhs prhs]
+    | Ptype_abstract -> 
+      let matchmaker l =
         let mkarg x = "a" ^ string_of_int x in
         let mkparg x = mkp @@ mkarg x in
         let plhs = ptuple (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) l) in
@@ -331,12 +336,12 @@ let dali_match_type tds td mn =
               | Ptyp_constr ({txt = Longident.Lident n}, _) ->
                 let argnp = mkparg i in
                 if n = td.ptype_name.txt then 
-                  app (evar ">>=") [app (evar "add_adt") [evar argn]; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
+                  app (evar ">>=") [app (evar "to_adt") [evar argn]; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
                 else
                   let st = find_some_type tds n in
                   (match st with
                    | Some t ->
-                     app (evar ">>=") [update_mapper t argn; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
+                     app (evar ">>=") [kind_mapper t argn; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
                    | None -> aux (i+1) y (argn :: allargns))
               | _ -> aux (i+1) y (argn :: allargns) in
           aux 0 l [] in
@@ -345,9 +350,10 @@ let dali_match_type tds td mn =
        | Some ({ptyp_desc = Ptyp_constr (_, _) } as x) -> matchmaker [x]
        | Some {ptyp_desc = Ptyp_tuple l} -> matchmaker l
        | None -> failwith "[dalify] Open abstract types are not supported"
-       | _ -> assert false) *)
-                   | Ptype_open -> assert false in
-               update_mapper td "a"
+       | _ -> assert false)
+    | Ptype_open -> assert false in
+  kind_mapper td "v"
+
 
   
 (* dali_add_adt *)
@@ -599,7 +605,7 @@ let dali_of_adt tds td mn =
               | Ptyp_constr ({txt = Longident.Lident n}, _) ->
                 let argnp = mkparg i in
                 if n = td.ptype_name.txt then 
-                  app (evar ">>=") [app (evar "aostore_adt") [evar argn]; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
+                  app (evar ">>=") [app (evar "aostore_add") [evar argn]; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
                 else
                   let st = find_some_type tds n in
                   (match st with
@@ -624,7 +630,7 @@ let dali_of_adt tds td mn =
             | Ptyp_constr ({txt = Longident.Lident n}, _) ->
               let argnp = mkp argn in
               if n = td.ptype_name.txt then 
-                app (evar ">>=") [app (evar "aostore_adt") [evar argn]; lam (pvar argnp) (aux y ((argn,argnp) :: allargns))]
+                app (evar ">>=") [app (evar "aostore_add") [evar argn]; lam (pvar argnp) (aux y ((argn,argnp) :: allargns))]
               else
                 let st = find_some_type tds n in
                 (match st with
@@ -651,7 +657,7 @@ let dali_of_adt tds td mn =
               | Ptyp_constr ({txt = Longident.Lident n}, _) ->
                 let argnp = mkparg i in
                 if n = td.ptype_name.txt then 
-                  app (evar ">>=") [app (evar "aostore_adt") [evar argn]; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
+                  app (evar ">>=") [app (evar "aostore_add") [evar argn]; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
                 else
                   let st = find_some_type tds n in
                   (match st with
@@ -820,14 +826,14 @@ let dali_derive tds td dts mn   =
   let to_adt = dali_to_adt tds td mn in
   let add_adt = dali_add_adt tds td mn in 
   let read_adt = dali_read_adt tds td mn in
-  (*let up_adt = dali_update_adt tds td mn in *)
+  let up_adt = dali_update_adt tds td mn in 
   let imodstr_rename = dali_imodstr_rename tds td mn   in
   let mmodsig_functs = dali_mmodsig_functs tds td mn  in
   let mmodstr_functs = dali_mmodstr_functs tds td mn  in
   let mergeable_functs = dali_mergeable_functs tds td mn  in
   let mmod_inst = dali_mmod_inst tds td mn in
   let bcsto_inst = dali_bcsto_inst tds td mn in
-  let dali_mapper = mk_dali_mapper ( adt_mod, adt_typesig, madt_typedef, irmin_convert, irmin_convert_tie, of_adt, to_adt, add_adt, read_adt, (*up_adt, *)
+  let dali_mapper = mk_dali_mapper ( adt_mod, adt_typesig, madt_typedef, irmin_convert, irmin_convert_tie, of_adt, to_adt, add_adt, read_adt, up_adt,
       imodstr_rename, mmodsig_functs, mmodstr_functs, mergeable_functs, mmod_inst, bcsto_inst) in 
   dali_mapper.structure dali_mapper (Parse.implementation @@ Lexing.from_string template)
 

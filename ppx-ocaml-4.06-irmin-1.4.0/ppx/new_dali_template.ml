@@ -21,14 +21,15 @@
 
   [%%dali_madt_typedef]
 
+    [%%dali_irmin_convert]
 
+          [%%dali_irmin_tie_convert]
 
-         module AO_value : Irmin.Contents.Conv with type t = t = struct
-          type madt = t
+         module AO_value : Irmin.Contents.Conv with type t = madt = struct
           type t = madt
           (* This function will create the ppx type extension for Irmin *)
           (*[%%dali_irmin_convert]*)
-          [%%dali_irmin_convert]
+          let t = IrminConvertTie.madt
 
           let pp = Irmin.Type.pp_json ~minify:false t
     
@@ -36,14 +37,14 @@
             let decoder = Jsonm.decoder (`String s) in
             let res = try Irmin.Type.decode_json t decoder 
                 with Invalid_argument s -> 
-                  (failwith @@ sprintf "AO_Value.of_string:\
+                  (failwith @@ Printf.sprintf "AO_Value.of_string:\
                     \ Invalid_argument: %s" s) in
               res
 
         end
 
-        [%%dali_mergeable_functs module AO_store = struct
-          module S = Irmin_git.AO(G)(K)(AO_value)
+        module AO_store = struct
+          module S = Irmin_git.AO(Git_unix.FS)(AO_value)
           include S
 
           let create config =
@@ -66,7 +67,7 @@
              Lwt.return k
 
           let rec add_adt t (a:[%dali_adt_typesig]) :  K.t Lwt.t = 
-             add t ==<< [%dali_add_adt]
+             add t =<< [%dali_add_adt]
 
 
           let rec read_adt t (k: K.t) : [%dali_adt_typesig] Lwt.t = 
@@ -74,25 +75,25 @@
             let a = from_just aop "to_adt" in 
             [%dali_read_adt]
 
-        end]
+        end
         
-        [%%dali_mmodsig_functs module type IRMIN_STORE_VALUE = sig
+        module type IRMIN_STORE_VALUE = sig
           include Irmin.Contents.S
           val of_adt: [%dali_adt_typesig] -> t Lwt.t
          val to_adt: t -> [%dali_adt_typesig] Lwt.t
-        end]
+        end
 
-         module BC_value: IRMIN_STORE_VALUE_MAKE with type t = t = struct
+         module BC_value: IRMIN_STORE_VALUE with type t = madt = struct
             include AO_value
 
 
-        let of_adt (a:OM.t) : t Lwt.t  =
+        let of_adt (a:[%dali_adt_typesig]) : t Lwt.t  =
       AO_store.create () >>= fun ao_store -> 
       let aostore_add adt =
         AO_store.add_adt ao_store adt in
      [%dali_of_adt]
 
-    let to_adt (t:t) : OM.t Lwt.t =
+    let to_adt (t:t) : [%dali_adt_typesig] Lwt.t =
       AO_store.create () >>= fun ao_store ->
       let aostore_read k =
         AO_store.read_adt ao_store k in
@@ -152,15 +153,6 @@
         let path_k = [fname_of_hash k] in
         update t path_k v_k in [%dali_update_adt] >>= fun () ->
         Store.set t p v ~info:(info msg)
-      (*(match v with
-        | N _  -> Lwt.return ()
-        | B {tl_t; tr_t; bl_t; br_t} -> 
-          List.fold_left  
-            (fun m k -> m >>= fun () -> 
-                        link_to_tree k) 
-            (Lwt.return ())
-            [tl_t; tr_t; bl_t; br_t]) >>= fun () ->
-      Store.set t p v ~info:(info msg)*)
   end]
 
     [%%dali_mergeable_functs module Vpst : sig
@@ -168,12 +160,12 @@
     val return : 'a -> 'a t
     val bind : 'a t -> ('a -> 'b t) -> 'b t
     val with_init_version_do: [%dali_adt_typesig] -> 'a t -> 'a
+    val with_remote_version_do: string -> 'a t -> 'a
     val fork_version : 'a t -> unit t
     val get_latest_version: unit -> [%dali_adt_typesig] t
     val sync_next_version: ?v:[%dali_adt_typesig] -> [%dali_adt_typesig] t
     val liftLwt : 'a Lwt.t -> 'a t
     val pull_remote: string -> unit t
-    val fork_remote: string -> unit t
   end = struct
     type store = BC_store.t
     (* st is a record type with fields as master, local, name and next_id *)
@@ -192,7 +184,7 @@
     let bind (m1: 'a t) (f: 'a -> 'b t) : 'b t = 
       fun st -> (m1 st >>= fun (a,st') -> f a st')
 
-    let with_init_version_do (v: OM.t) (m: 'a t) =
+    let with_init_version_do (v: [%dali_adt_typesig]) (m: 'a t) =
       Lwt_main.run 
         begin
           BC_store.init () >>= fun repo -> 
@@ -222,7 +214,7 @@
         Lwt.return ((), {st with next_id=st.next_id+1})
       end 
 
-    let get_latest_version () : OM.t t = fun (st: st) ->
+    let get_latest_version () : [%dali_adt_typesig] t = fun (st: st) ->
       BC_store.read st.local path >>= fun (vop:BC_value.t option) ->
       let v = from_just vop "get_latest_version"  in
       BC_value.to_adt v >>= fun td ->
@@ -230,7 +222,7 @@
 
     let pull_remote remote_uri = fun (st: st) ->
       (* Pull and merge remote to master *)
-      let cinfo = info (sprintf "Merging remote(%s) to local master" 
+      let cinfo = info (Printf.sprintf "Merging remote(%s) to local master" 
                           remote_uri) in
       let remote = Irmin.remote_uri remote_uri in
       BC_store.Sync.pull st.master remote 
@@ -239,15 +231,22 @@
           | Ok _ -> Lwt.return ((),st)
           | Error _ -> failwith "Error while pulling the remote")
 
-    let fork_remote remote_uri = fun (st: st) ->
-      (* Fork master from remote master *)
-      let remote = Irmin.remote_uri remote_uri in
-      BC_store.Sync.pull st.master remote `Set >>= fun res ->
-      (match res with
-          | Ok _ -> Lwt.return ((),st)
-          | Error _ -> failwith "Error while pulling the remote")
+       let with_remote_version_do remote_uri m = 
+      Lwt_main.run 
+        begin
+          BC_store.init () >>= fun repo -> 
+          BC_store.master repo >>= fun m_br -> 
+          let remote = Irmin.remote_uri remote_uri in
+          BC_store.Sync.pull m_br remote `Set >>= fun res ->
+          (match res with
+              | Ok _ -> Lwt.return ()
+              | Error _ -> failwith "Error while pulling the remote") >>= fun _ ->
+          BC_store.clone m_br "1_local" >>= fun t_br ->
+          let st = {master=m_br; local=t_br; name="1"; next_id=1} in
+          m st >>= fun (a,_) -> Lwt.return a
+        end
 
-   let sync_next_version ?v : OM.t t = fun (st: st) ->
+   let sync_next_version ?v : [%dali_adt_typesig] t = fun (st: st) ->
       (* How do you commit the next version? Simply update path?
        * GK:Yes *)
       (* 1. Commit to the local branch *)

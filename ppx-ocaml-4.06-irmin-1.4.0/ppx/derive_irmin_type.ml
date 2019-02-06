@@ -123,7 +123,8 @@ let derive_to_irmin (tds:type_declaration list) =
           (Exp.open_ Fresh {txt = Ldot (Lident "Irmin", "Type"); loc = !Ast_helper.default_loc} 
           (app (Exp.ident ({txt = (Lident "|>"); loc = !Ast_helper.default_loc})) 
              [rrr'; (Exp.ident ({txt = (Lident "sealr"); loc = !Ast_helper.default_loc}))])) in 
-        Vb.mk (pvar @@ ("mk" ^ mk_to_irmin_name ctd)) ty
+        if (List.exists (fun x -> c_ty x) l) then Vb.mk (pvar @@ ("mk" ^ mk_to_irmin_name ctd)) ty else 
+        Vb.mk (pvar @@ (mk_to_irmin_name ctd)) ty
     | Ptype_abstract ->  {pvb_pat = {ppat_desc = Ppat_any; ppat_loc= !Ast_helper.default_loc; ppat_attributes = []}; pvb_expr = {pexp_desc = Pexp_unreachable; pexp_loc = !Ast_helper.default_loc; pexp_attributes = []}; pvb_attributes = [] ; pvb_loc = !Ast_helper.default_loc}
     | Ptype_open -> assert false) in
   Str.value Nonrecursive (List.map kind_mapper tds)
@@ -167,8 +168,8 @@ let derive_to_irmin_tie (tds:type_declaration list) =
            let tys = List.map (fun x -> ty x) l in
            let prhs = (Exp.open_ Fresh {txt = Ldot (Lident "Irmin", "Type"); loc = !Ast_helper.default_loc} 
             (app (evar "mu2") [lam (pvar (get_core (List.hd tys))) (lam (pvar (mk_to_irmin_name ctd))
-                                (tuple [constr ("mk" ^ (get_core (List.hd tys))) [(evar (mk_to_irmin_name ctd))] ;
-                                        constr ("mk" ^ (mk_to_irmin_name ctd)) [(evar ((get_core (List.hd tys))))]]))])) in 
+                                (tuple [constr ("IrminConvert" ^ "." ^ "mk" ^ (get_core (List.hd tys))) [(evar (mk_to_irmin_name ctd))] ;
+                                        constr ("IrminConvert" ^ "." ^ "mk" ^ (mk_to_irmin_name ctd)) [(evar ((get_core (List.hd tys))))]]))])) in 
            if tys = [] then {pvb_pat = punit(); pvb_expr= unit(); pvb_attributes = []; pvb_loc = !Ast_helper.default_loc}
            else Vb.mk (ptuple [pvar (get_core (List.hd tys)); pvar (mk_to_irmin_name ctd)]) prhs  
    | Ptype_record l -> {pvb_pat = punit(); pvb_expr= unit(); pvb_attributes = []; pvb_loc = !Ast_helper.default_loc}
