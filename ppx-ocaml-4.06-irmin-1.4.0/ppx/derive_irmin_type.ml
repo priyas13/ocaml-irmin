@@ -20,9 +20,14 @@ let rec find_some_type l tn =
 (* mkaststr takes str (string) as argument and returns a record type with extension node name and location as fields *)
 let mkaststr str = {txt=str; loc = !Ast_helper.default_loc}
 
-  let get_core_list c' = match c' with
+let get_core_list c' = match c' with
                                | Pcstr_tuple ct' -> ct'
                                | Pcstr_record rt' -> invalid_arg "Derive.get_core_list"
+
+let get_core = function
+  | {pexp_desc=Pexp_ident{txt=id;_};_} ->
+      (String.concat "." (Longident.flatten id))
+  | _ -> failwith "error"
 
 
 
@@ -35,7 +40,7 @@ let derive_to_irmin (tds:type_declaration list) =
     (* ptype_name field of t is the type name *)
     (* ^ concatenates the name with _to_json *)
     (* Because we are converting the type to json, hence we concatenate the type name of the declaration with to_json. The function name is like t_to_json *)
-    t.ptype_name.txt in
+    (t.ptype_name.txt) in
   let rec kind_mapper ctd =
   (* here tt is the type expression which contains ptyp_desc, ptyp_loc and ptyp_attributes *)
   (* ptyp_desc for the core type tt is matched against each constructor *)
@@ -84,13 +89,20 @@ let derive_to_irmin (tds:type_declaration list) =
            let cc = List.map ttt l in
            let rrr = app (Exp.ident ({txt = (Lident "variant"); loc = !Ast_helper.default_loc})) 
             [Exp.constant (Pconst_string (mk_to_irmin_name ctd, None)); pr'] in 
-           let rrr' = List.fold_left (fun x y -> (app (Exp.ident ({txt = (Lident "|~"); loc = !Ast_helper.default_loc})) [x;y])) rrr cc in 
-           Exp.open_ Fresh {txt = Ldot (Lident "Irmin", "Type"); loc = !Ast_helper.default_loc} 
+           let rrr' = List.fold_left (fun x y -> (app (Exp.ident ({txt = (Lident "|~"); loc = !Ast_helper.default_loc})) [x;y])) rrr cc in  
+           let ty x = (type_to_to_irmin_expr (List.hd(get_core_list (x.pcd_args))) x.pcd_name.txt) in 
+           let tys = List.map (fun x -> ty x) l in
+           (if (tys = []) then  (Exp.open_ Fresh {txt = Ldot (Lident "Irmin", "Type"); loc = !Ast_helper.default_loc} 
              (app (Exp.ident ({txt = (Lident "|>"); loc = !Ast_helper.default_loc})) 
-              [rrr'; (Exp.ident ({txt = (Lident "sealv"); loc = !Ast_helper.default_loc}))]) in 
-            Vb.mk (pvar @@ (mk_to_irmin_name ctd)) prhs
+              [rrr'; (Exp.ident ({txt = (Lident "sealv"); loc = !Ast_helper.default_loc}))])) else 
+          (lam (pvar (get_core (List.hd tys)))
+           (Exp.open_ Fresh {txt = Ldot (Lident "Irmin", "Type"); loc = !Ast_helper.default_loc} 
+             (app (Exp.ident ({txt = (Lident "|>"); loc = !Ast_helper.default_loc})) 
+              [rrr'; (Exp.ident ({txt = (Lident "sealv"); loc = !Ast_helper.default_loc}))])))) in 
+            Vb.mk (pvar @@ ("mk" ^ mk_to_irmin_name ctd)) prhs ; 
+
+
     | Ptype_record l ->
-      let prhs = 
         let rr = List.map (fun e -> e.pld_name.txt, evar e.pld_name.txt) l in 
         let ff = List.fold_right (fun x y -> lam (pvar x.pld_name.txt) y) l (record rr) in 
         let rrr = app (Exp.ident ({txt = (Lident "record"); loc = !Ast_helper.default_loc})) 
@@ -102,11 +114,18 @@ let derive_to_irmin (tds:type_declaration list) =
                     (Exp.field (Exp.ident ({txt = (Lident "t"); loc = !Ast_helper.default_loc})) 
                                {txt = (Lident x.pld_name.txt); loc = !Ast_helper.default_loc}))] in
         let cc = List.map ttt l in 
-        let rrr' = List.fold_left (fun x y -> (app (Exp.ident ({txt = (Lident "|+"); loc = !Ast_helper.default_loc})) [x;y])) rrr cc in 
-        Exp.open_ Fresh {txt = Ldot (Lident "Irmin", "Type"); loc = !Ast_helper.default_loc} 
+        let rrr' = List.fold_left (fun x y -> (app (Exp.ident ({txt = (Lident "|+"); loc = !Ast_helper.default_loc})) [x;y])) rrr cc in
+        let c_ty x = match x.pld_type.ptyp_desc with 
+                     | Ptyp_constr ({txt = Longident.Ldot (n, "t")}, x) -> true 
+                     | _ -> false in  
+        let ty = if (List.exists (fun x -> c_ty x) l) then 
+          (lam (pvar "t") (Exp.open_ Fresh {txt = Ldot (Lident "Irmin", "Type"); loc = !Ast_helper.default_loc} 
           (app (Exp.ident ({txt = (Lident "|>"); loc = !Ast_helper.default_loc})) 
-             [rrr'; (Exp.ident ({txt = (Lident "sealr"); loc = !Ast_helper.default_loc}))]) in 
-        Vb.mk (pvar @@ (mk_to_irmin_name ctd)) prhs
+             [rrr'; (Exp.ident ({txt = (Lident "sealr"); loc = !Ast_helper.default_loc}))]))) else 
+          (Exp.open_ Fresh {txt = Ldot (Lident "Irmin", "Type"); loc = !Ast_helper.default_loc} 
+          (app (Exp.ident ({txt = (Lident "|>"); loc = !Ast_helper.default_loc})) 
+             [rrr'; (Exp.ident ({txt = (Lident "sealr"); loc = !Ast_helper.default_loc}))])) in 
+        Vb.mk (pvar @@ ("mk" ^ mk_to_irmin_name ctd)) ty
     | Ptype_abstract ->  {pvb_pat = {ppat_desc = Ppat_any; ppat_loc= !Ast_helper.default_loc; ppat_attributes = []}; pvb_expr = {pexp_desc = Pexp_unreachable; pexp_loc = !Ast_helper.default_loc; pexp_attributes = []}; pvb_attributes = [] ; pvb_loc = !Ast_helper.default_loc}
     | Ptype_open -> assert false) in
   Str.value Nonrecursive (List.map kind_mapper tds)

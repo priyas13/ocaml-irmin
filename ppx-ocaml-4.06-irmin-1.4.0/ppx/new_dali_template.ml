@@ -21,12 +21,14 @@
 
   [%%dali_madt_typedef]
 
+
+
          module AO_value : Irmin.Contents.Conv with type t = t = struct
           type madt = t
           type t = madt
           (* This function will create the ppx type extension for Irmin *)
           (*[%%dali_irmin_convert]*)
-          [%%dali_json_convert]
+          [%%dali_irmin_convert]
 
           let pp = Irmin.Type.pp_json ~minify:false t
     
