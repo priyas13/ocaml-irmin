@@ -99,10 +99,8 @@ let derive_to_irmin (tds:type_declaration list) =
            (Exp.open_ Fresh {txt = Ldot (Lident "Irmin", "Type"); loc = !Ast_helper.default_loc} 
              (app (Exp.ident ({txt = (Lident "|>"); loc = !Ast_helper.default_loc})) 
               [rrr'; (Exp.ident ({txt = (Lident "sealv"); loc = !Ast_helper.default_loc}))])))) in 
-            Vb.mk (pvar @@ ("mk" ^ mk_to_irmin_name ctd)) prhs ; 
-
-
-    | Ptype_record l ->
+            Vb.mk (pvar @@ ("mk" ^ mk_to_irmin_name ctd)) prhs 
+   | Ptype_record l ->
         let rr = List.map (fun e -> e.pld_name.txt, evar e.pld_name.txt) l in 
         let ff = List.fold_right (fun x y -> lam (pvar x.pld_name.txt) y) l (record rr) in 
         let rrr = app (Exp.ident ({txt = (Lident "record"); loc = !Ast_helper.default_loc})) 
@@ -126,6 +124,54 @@ let derive_to_irmin (tds:type_declaration list) =
           (app (Exp.ident ({txt = (Lident "|>"); loc = !Ast_helper.default_loc})) 
              [rrr'; (Exp.ident ({txt = (Lident "sealr"); loc = !Ast_helper.default_loc}))])) in 
         Vb.mk (pvar @@ ("mk" ^ mk_to_irmin_name ctd)) ty
+    | Ptype_abstract ->  {pvb_pat = {ppat_desc = Ppat_any; ppat_loc= !Ast_helper.default_loc; ppat_attributes = []}; pvb_expr = {pexp_desc = Pexp_unreachable; pexp_loc = !Ast_helper.default_loc; pexp_attributes = []}; pvb_attributes = [] ; pvb_loc = !Ast_helper.default_loc}
+    | Ptype_open -> assert false) in
+  Str.value Nonrecursive (List.map kind_mapper tds)
+
+  (* derive_to_json takes a list of type declarations as argument *)
+(* it is a function for producing the AST of the json value of the type *)
+(* t is any type *)
+let derive_to_irmin_tie (tds:type_declaration list) =
+  (* t is here a type declaration *)
+  let mk_to_irmin_name t = 
+    (* ptype_name field of t is the type name *)
+    (* ^ concatenates the name with _to_json *)
+    (* Because we are converting the type to json, hence we concatenate the type name of the declaration with to_json. The function name is like t_to_json *)
+    (t.ptype_name.txt) in
+  let rec kind_mapper ctd =
+  (* here tt is the type expression which contains ptyp_desc, ptyp_loc and ptyp_attributes *)
+  (* ptyp_desc for the core type tt is matched against each constructor *)
+  (* a is the value *)
+    let type_to_to_irmin_expr tt a =
+      (match tt.ptyp_desc with
+        (* Here n is a type and t is the string. Longident.flatten n returns the string of type n *)
+        (* evar a creates the Exp.ident with the text and location *)
+        (* app calls the function on the second argument by using E.apply *)
+        (* here the first case is for the recursive type *)
+      | Ptyp_constr ({txt = Longident.Ldot (n, "t")}, x) ->
+        let prefix = "K.t" in 
+        evar (prefix) 
+      | Ptyp_constr ({txt = n}, x) ->
+        let tn = String.concat "." (Longident.flatten n) in
+        let prefix = (match tn with
+          | "int" -> "Irmin.Type.int64"
+          | "string" -> "Irmin.Type.string"
+          | "char" -> "Irmin.Type.char"
+          | x -> x) in
+        evar (prefix)
+      | Ptyp_var n -> (evar n) 
+      | _ -> failwith "[derive ezjsonm]: Not implemented.") in
+    (match ctd.ptype_kind with
+    | Ptype_variant l -> 
+            let ty x = (type_to_to_irmin_expr (List.hd(get_core_list (x.pcd_args))) x.pcd_name.txt) in 
+           let tys = List.map (fun x -> ty x) l in
+           let prhs = (Exp.open_ Fresh {txt = Ldot (Lident "Irmin", "Type"); loc = !Ast_helper.default_loc} 
+            (app (evar "mu2") [lam (pvar (get_core (List.hd tys))) (lam (pvar (mk_to_irmin_name ctd))
+                                (tuple [constr ("mk" ^ (get_core (List.hd tys))) [(evar (mk_to_irmin_name ctd))] ;
+                                        constr ("mk" ^ (mk_to_irmin_name ctd)) [(evar ((get_core (List.hd tys))))]]))])) in 
+           if tys = [] then {pvb_pat = punit(); pvb_expr= unit(); pvb_attributes = []; pvb_loc = !Ast_helper.default_loc}
+           else Vb.mk (ptuple [pvar (get_core (List.hd tys)); pvar (mk_to_irmin_name ctd)]) prhs  
+   | Ptype_record l -> {pvb_pat = punit(); pvb_expr= unit(); pvb_attributes = []; pvb_loc = !Ast_helper.default_loc}
     | Ptype_abstract ->  {pvb_pat = {ppat_desc = Ppat_any; ppat_loc= !Ast_helper.default_loc; ppat_attributes = []}; pvb_expr = {pexp_desc = Pexp_unreachable; pexp_loc = !Ast_helper.default_loc; pexp_attributes = []}; pvb_attributes = [] ; pvb_loc = !Ast_helper.default_loc}
     | Ptype_open -> assert false) in
   Str.value Nonrecursive (List.map kind_mapper tds)

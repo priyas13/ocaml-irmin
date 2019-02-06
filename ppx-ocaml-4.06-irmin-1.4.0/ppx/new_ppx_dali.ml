@@ -29,7 +29,7 @@ let mkaststr str = {txt=str; loc = !Ast_helper.default_loc}
 (* mk_dali_mapper *)
 (* This function takes care of all the mapping needed  *)
 (* all the arguments provided are of different types *)
-let mk_dali_mapper (mn, mts, mtd, ic, ofa, toa, ada, rda, (*uadt,*) imr, msigf, mstrf, mergf, mmodi, bcstoi) = {
+let mk_dali_mapper (mn, mts, mtd, ic, ict, ofa, toa, ada, rda, (*uadt,*) imr, msigf, mstrf, mergf, mmodi, bcstoi) = {
   default_mapper with 
   module_expr = (fun mapper t ->
       match t with
@@ -46,6 +46,7 @@ let mk_dali_mapper (mn, mts, mtd, ic, ofa, toa, ada, rda, (*uadt,*) imr, msigf, 
       match t with
       | { pstr_desc = Pstr_extension (({txt = "dali_madt_typedef"}, _), _) } -> mapper.structure_item mapper mtd
       | { pstr_desc = Pstr_extension (({txt = "dali_irmin_convert"}, _), _) } -> ic
+      | { pstr_desc = Pstr_extension (({txt = "dali_irmin_tie_convert"}, _), _) } -> ict
       | { pstr_desc = Pstr_extension (({txt = "dali_imodstr_rename"}, p), _) } ->
         mapper.structure_item mapper (imr p) 
       | { pstr_desc = Pstr_extension (({txt = "dali_mmodsig_functs"}, p), _) } ->
@@ -784,6 +785,13 @@ let dali_irmin_convert madt tds =
   let to_irmin = List.map Derive_irmin_type.derive_to_irmin [tds; madt] in
   Str.module_ @@ Mb.mk (mkaststr "IrminConvert") (Mod.structure to_irmin)
 
+
+(* dali_json_convert returns a structure item *)
+let dali_irmin_tie_convert madt tds =
+  let open Ast_helper in
+  let to_irmin_tie = List.map Derive_irmin_type.derive_to_irmin_tie [tds; madt] in
+  Str.module_ @@ Mb.mk (mkaststr "IrminConvertTie") (Mod.structure to_irmin_tie)
+
 (* mn is module type name *)
 (* tds is the list of type declarations *)
 (* td is a type declaration *)
@@ -807,6 +815,7 @@ let dali_derive tds td dts mn   =
   let adt_typesig = dali_adt_typesig tds td mn in
   let madt_typedef, madt = dali_madt_typedef tds td mn in
   let irmin_convert = dali_irmin_convert madt dts in
+  let irmin_convert_tie = dali_irmin_tie_convert madt dts in
   let of_adt = dali_of_adt tds td mn in
   let to_adt = dali_to_adt tds td mn in
   let add_adt = dali_add_adt tds td mn in 
@@ -818,7 +827,7 @@ let dali_derive tds td dts mn   =
   let mergeable_functs = dali_mergeable_functs tds td mn  in
   let mmod_inst = dali_mmod_inst tds td mn in
   let bcsto_inst = dali_bcsto_inst tds td mn in
-  let dali_mapper = mk_dali_mapper ( adt_mod, adt_typesig, madt_typedef, irmin_convert, of_adt, to_adt, add_adt, read_adt, (*up_adt, *)
+  let dali_mapper = mk_dali_mapper ( adt_mod, adt_typesig, madt_typedef, irmin_convert, irmin_convert_tie, of_adt, to_adt, add_adt, read_adt, (*up_adt, *)
       imodstr_rename, mmodsig_functs, mmodstr_functs, mergeable_functs, mmod_inst, bcsto_inst) in 
   dali_mapper.structure dali_mapper (Parse.implementation @@ Lexing.from_string template)
 
