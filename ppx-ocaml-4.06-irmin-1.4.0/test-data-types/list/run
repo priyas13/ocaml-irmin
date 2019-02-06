@@ -1,1 +1,0 @@
-ocamlfind ocamlopt msigs.ml mvector_list.ml ilist.ml test5.ml -o list -package ezjsonm,irmin-unix,irmin-http,lwt.unix -linkpkg -thread
