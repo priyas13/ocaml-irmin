@@ -176,4 +176,3 @@ let derive_to_irmin_tie (tds:type_declaration list) =
     | Ptype_abstract ->  {pvb_pat = pvar "madt"; pvb_expr= evar "Irmin.Type.int64"; pvb_attributes = []; pvb_loc = !Ast_helper.default_loc}
     | Ptype_open -> assert false) in
   Str.value Nonrecursive (List.map kind_mapper tds)
-
