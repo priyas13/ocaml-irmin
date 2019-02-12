@@ -9,7 +9,7 @@ Item is a record datatype with fields as the name of the item and the number rep
 For merging the shopping cart we should use the merge operation supported by list data type and counter data type. Why? 
 Because shopping cart data type is a composition of list data type and counter data type
 
-##Compile and run 
+## Compile and run 
 ocamlfind ocamlopt counter.ml msigs.ml  mvector_list.ml  shoppingcart_app.ml cart_test1.ml cart_test2.ml cart_test3.ml cart_test4.ml -o sc -package ezjsonm,irmin-unix,irmin-http,lwt.unix -linkpkg -thread
 
 ./sc
