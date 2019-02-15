@@ -15,7 +15,13 @@ module Warehouse = struct
   let compare = Pervasives.compare
   let merge3 ~ancestor v1 v2 = if (ancestor.w_id = v1.w_id) && 
                                   (v1.w_id = v2.w_id) && 
-                                  (ancestor.w_id = v2.w_id) 
+                                  (ancestor.w_id = v2.w_id) &&
+                                  (ancestor.w_name = v1.w_name) && 
+                                  (v1.w_name = v2.w_name) && 
+                                  (ancestor.w_name = v2.w_name) &&
+                                  (ancestor.w_state = v1.w_state) && 
+                                  (v1.w_state = v2.w_state) && 
+                                  (ancestor.w_state = v2.w_state)
                                   then 
                                      {w_id = ancestor.w_id; 
                                       w_name = ancestor.w_name; 
@@ -36,7 +42,13 @@ module District = struct
   let compare = Pervasives.compare
   let merge3 ~ancestor v1 v2 = if (ancestor.d_id = v1.d_id) && 
                                   (v1.d_id = v2.d_id) && 
-                                  (ancestor.d_id = v2.d_id) 
+                                  (ancestor.d_id = v2.d_id) &&
+                                  (ancestor.d_name = v1.d_name) && 
+                                  (v1.d_name = v2.d_name) && 
+                                  (ancestor.d_name = v2.d_name) &&
+                                  (ancestor.d_w_id = v1.d_w_id) && 
+                                  (v1.d_w_id = v2.d_w_id) && 
+                                  (ancestor.d_w_id = v2.d_w_id)
                                   then 
                                      {d_id = ancestor.d_id; 
                                       d_name = ancestor.d_name; 
@@ -63,7 +75,13 @@ module Customer = struct
  let compare = Pervasives.compare
  let merge3 ~ancestor v1 v2 = if (ancestor.c_id = v1.c_id) && 
                                   (v1.c_id = v2.c_id) && 
-                                  (ancestor.c_id = v2.c_id) 
+                                  (ancestor.c_id = v2.c_id) &&
+                                  (ancestor.c_d_id = v1.c_d_id) && 
+                                  (v1.c_d_id = v2.c_d_id) && 
+                                  (ancestor.c_d_id = v2.c_d_id) &&
+                                  (ancestor.c_w_id = v1.c_w_id) && 
+                                  (v1.c_w_id = v2.c_w_id) && 
+                                  (ancestor.c_w_id = v2.c_w_id)
                                   then 
                                      {c_id = ancestor.c_id; 
                                       c_d_id = ancestor.c_d_id; 
@@ -92,7 +110,16 @@ module Order = struct
  type t = {o_id : int; o_c_id : atom; o_d_id : atom; o_w_id : atom; o_ol_ct: int}
  let merge3 ~ancestor v1 v2 = if (ancestor.o_id = v1.o_id) && 
                                   (v1.o_id = v2.o_id) && 
-                                  (ancestor.o_id = v2.o_id) 
+                                  (ancestor.o_id = v2.o_id) &&
+                                  (ancestor.o_c_id = v1.o_c_id) && 
+                                  (v1.o_c_id = v2.o_c_id) && 
+                                  (ancestor.o_c_id = v2.o_c_id) &&
+                                  (ancestor.o_d_id = v1.o_d_id) && 
+                                  (v1.o_d_id = v2.o_d_id) && 
+                                  (ancestor.o_d_id = v2.o_d_id) &&
+                                  (ancestor.o_w_id = v1.o_w_id) && 
+                                  (v1.o_w_id = v2.o_w_id) && 
+                                  (ancestor.o_w_id = v2.o_w_id)
                                   then 
                                      {o_id = OC.merge ancestor.o_id v1.o_id v2.o_id; 
                                       o_c_id = ancestor.o_c_id; 
@@ -113,7 +140,13 @@ module Neworder = struct
  type t = {no_o_id: int; no_d_id: atom; no_w_id: atom}
  let merge3 ~ancestor v1 v2 = if (ancestor.no_o_id = v1.no_o_id) && 
                                   (v1.no_o_id = v2.no_o_id) && 
-                                  (ancestor.no_o_id = v2.no_o_id) 
+                                  (ancestor.no_o_id = v2.no_o_id) &&
+                                  (ancestor.no_d_id = v1.no_d_id) && 
+                                  (v1.no_d_id = v2.no_d_id) && 
+                                  (ancestor.no_d_id = v2.no_d_id) &&
+                                  (ancestor.no_w_id = v1.no_w_id) && 
+                                  (v1.no_w_id = v2.no_w_id) && 
+                                  (ancestor.no_w_id = v2.no_w_id)
                                   then 
                                      {no_o_id = OC.merge (ancestor.no_o_id) (v1.no_o_id) (v2.no_o_id); 
                                       no_d_id = ancestor.no_d_id; 
@@ -130,8 +163,11 @@ module Stock = struct
  type t = {s_i_id: atom; s_w_id: atom; s_qty: int; s_ytd: int; s_order_cnt: int}
  let merge3 ~ancestor v1 v2 = if (ancestor.s_i_id = v1.s_i_id) && 
                                   (v1.s_i_id = v2.s_i_id) && 
-                                  (ancestor.s_i_id = v2.s_i_id) 
-                                  then 
+                                  (ancestor.s_i_id = v2.s_i_id) &&
+                                  (ancestor.s_w_id = v1.s_w_id) && 
+                                  (v1.s_w_id = v2.s_w_id) && 
+                                  (ancestor.s_w_id = v2.s_w_id)
+                                 then 
                                      {s_i_id = ancestor.s_i_id;
                                       s_w_id = ancestor.s_w_id;
                                       s_qty = OC.merge (ancestor.s_qty) (v1.s_qty) (v2.s_qty); 
@@ -151,7 +187,10 @@ module Item = struct
  type t = {i_id: atom; i_name: string; i_price: int}
  let merge3 ~ancestor v1 v2 = if (ancestor.i_id = v1.i_id) && 
                                   (v1.i_id = v2.i_id) && 
-                                  (ancestor.i_id = v2.i_id) 
+                                  (ancestor.i_id = v2.i_id) &&
+                                  (ancestor.i_name = v1.i_name) && 
+                                  (v1.i_name = v2.i_name) && 
+                                  (ancestor.i_name = v2.i_name)
                                   then 
                                      {i_id = ancestor.i_id;
                                       i_name = ancestor.i_name;
@@ -203,7 +242,7 @@ module Orderline = struct
  type t = {ol_o_id: int; 
            ol_d_id: atom; 
            ol_w_id: atom; 
-           ol_num: atom; 
+           ol_num: int; 
            ol_amt: int; 
            ol_i_id: atom; 
            ol_supply_w_id: atom;
@@ -221,7 +260,7 @@ module Orderline = struct
                                      {ol_o_id = OC.merge ancestor.ol_o_id v1.ol_o_id v2.ol_o_id; 
                                       ol_d_id = ancestor.ol_d_id; 
                                       ol_w_id = ancestor.ol_w_id; 
-                                      ol_num = ancestor.ol_num; 
+                                      ol_num = OC.merge ancestor.ol_num v1.ol_num v2.ol_num; 
                                       ol_amt = OC.merge ancestor.ol_amt v1.ol_amt v2.ol_amt; 
                                       ol_i_id = ancestor.ol_i_id; 
                                       ol_supply_w_id = ancestor.ol_supply_w_id;
@@ -256,7 +295,7 @@ let merge3 ~ancestor v1 v2 = if (ancestor.ol_i_id = v1.ol_i_id) &&
                                     ol_supply_w_id = ancestor.ol_supply_w_id;
                                     ol_qty = OC.merge ancestor.ol_qty v1.ol_qty v2.ol_qty}
                                 else failwith "Merge not possible"
-let reoslve x y = {ol_num = 0;
+let resolve x y = {ol_num = 0;
                    ol_i_id = x.ol_i_id;
                    ol_supply_w_id = x.ol_supply_w_id;
                    ol_qty = 0}
@@ -273,11 +312,20 @@ open Neworder
 open Stock
 open Item 
 open Orderline
+open Itemreq
 module OCT = Counter.Make
 module OW = Mvector_list.List(Warehouse)
 module OD = Mvector_list.List(District)
 module OC = Mvector_list.List(Customer)
 module OO = Mvector_list.List(Order)
+module OL = Mvector_list.List(Orderline)
+module ONO = Mvector_list.List(Neworder)
+module OS = Mvector_list.List(Stock)
+module OI = Mvector_list.List(Item)
+module OIR = Mvector_list.List(Itemreq)
+module OH = Mvector_list.List(History)
+
+type t = {wt : OW.t; dt : OD.t; ct : OC.t; ot : OO.t; olt : OL.t; ont : ONO.t; st : OS.t; it : OI.t; irt : OIR.t; ht : OH.t}
 
 let rec retrieve_warehouse wid wt = match wt with 
                                | [] -> failwith "No such warehouse"
@@ -411,9 +459,9 @@ let new_order_txn wid dw did cw cd cid wt dt ot st it nort olt is =
 	           ol_i_id = r.ol_i_id;
 	           ol_supply_w_id = r.ol_supply_w_id;
 	           ol_qty = r.ol_qty} in 
-	let stqr = if sr.s_qty >= r.ol_qty 
+	let stqr = if sr.s_qty >= r.ol_qty + 10 
 	            then sr.s_qty - r.ol_qty
-	            else failwith "Items are not in stock" in 
+	            else sr.s_qty - r.ol_qty + 100 in 
 	update_stock sr.s_i_id {s_i_id = r.ol_i_id;
 	                 s_w_id = r.ol_supply_w_id;
 	                 s_qty = stqr;
@@ -424,6 +472,18 @@ let new_order_txn wid dw did cw cd cid wt dt ot st it nort olt is =
 	                                | [] -> failwith "No update"
 	                                | x :: x' -> perform_ir x :: update_after_new_order x' in 
 	update_after_new_order is 
+
+
+let rec merge ~ancestor v1 v2 = {wt = OW.merge3 ancestor.wt v1.wt v2.wt;
+                                 dt = OD.merge3 ancestor.dt v1.dt v2.dt;
+                                 ct = OC.merge3 ancestor.ct v1.ct v2.ct;
+                                 ot = OO.merge3 ancestor.ot v1.ot v2.ot;
+                                 olt = OL.merge3 ancestor.olt v1.olt v2.olt;
+                                 ont = ONO.merge3 ancestor.ont v1.ont v2.ont;
+                                 st = OS.merge3 ancestor.st v1.st v2.st;
+                                 it = OI.merge3 ancestor.it v1.it v2.it;
+                                 irt = OIR.merge3 ancestor.irt v1.irt v2.irt;
+                                 ht = OH.merge3 ancestor.ht v1.ht v2.ht}
     
 
 
