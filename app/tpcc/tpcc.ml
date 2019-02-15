@@ -327,11 +327,11 @@ let update_district_ytd did dw dt amt = let d = retrieve_district did dw dt in
                                           d_next_o_id = d.d_next_o_id}
 
 let update_district_next_oid did dw dt noid = let d = retrieve_district did dw dt in 
-                                         {d_id = did; 
-                                          d_name = d.d_name; 
-                                          d_w_id = dw;
-                                          d_ytd = d.d_ytd; 
-                                          d_next_o_id = noid}
+                                               {d_id = did; 
+                                                d_name = d.d_name; 
+                                                d_w_id = dw;
+                                                d_ytd = d.d_ytd; 
+                                                d_next_o_id = noid}
 
 
 let update_customer_after_payment_txn cid cd cw ct amt = let c = retrieve_customer cid cd cw ct in
@@ -343,6 +343,26 @@ let update_customer_after_payment_txn cid cd cw ct amt = let c = retrieve_custom
                                                        c_payment_ct = c.c_payment_ct + 1;
                                                        c_delivery_ct = c.c_delivery_ct} 
 
+
+let update_customer_after_payment_txn cid cd cw ct amt = let c = retrieve_customer cid cd cw ct in
+                                                      {c_id = cid;
+                                                       c_d_id = c.c_d_id;
+                                                       c_w_id = c.c_w_id;
+                                                       c_ytd = OCT.inc c.c_ytd amt;
+                                                       c_bal = OCT.dec c.c_ytd amt;
+                                                       c_payment_ct = c.c_payment_ct + 1;
+                                                       c_delivery_ct = c.c_delivery_ct}
+
+let rec update_stock sid s st = match st with 
+                             | [] -> failwith "No such stock"
+                             | x :: x' ->  if x.s_i_id = sid then s 
+                                                             else update_stock sid s x' 
+
+let rec update_district did d dt = match dt with 
+                                   | [] -> failwith "No such district"
+                                   | x :: x' -> if x.d_id = did then d 
+                                                                else update_district did d x'
+
 let get_last_order ol = OO.get ol (List.length ol - 1)
 
 let rec get_price_item_id iid it = match it with 
@@ -351,9 +371,9 @@ let rec get_price_item_id iid it = match it with
                                                             else get_price_item_id iid x'
 
 let payment_txn wid did dw cw cd cid hamt wt dt ct ht = 
-	update_warehouse wid wt hamt;
-	update_district_ytd did dw dt hamt;
-	update_customer_after_payment_txn cid cd cw ct hamt;
+	let _ = update_warehouse wid wt hamt in
+	let _ = update_district_ytd did dw dt hamt in 
+	let _ = update_customer_after_payment_txn cid cd cw ct hamt in 
 	List.append ht [{h_c_id = cid;
 	                h_c_d_id = cd;
 	                h_c_w_id = cw;
@@ -361,11 +381,15 @@ let payment_txn wid did dw cw cd cid hamt wt dt ct ht =
 	                h_w_id = wid;
 	                h_amt = hamt}]
 
-let new_order_txn wid dw did cw cd cid wt dt ot st it nort is = 
+let new_order_txn wid dw did cw cd cid wt dt ot st it nort olt is = 
 	let d = retrieve_district did wid dt in 
 	let oid = d.d_next_o_id in 
 	let d_next_oid' = d.d_next_o_id + 1 in 
-	let d' = update_district_next_oid did wid dt d_next_oid' in 
+	let _ = update_district did {d_id = did;
+	                             d_name = d.d_name;
+	                             d_w_id = wid;
+	                             d_ytd = d.d_ytd;
+	                             d_next_o_id = d_next_oid'} in 
 	let o = {o_id = oid; 
 	         o_c_id = cid; 
 	         o_d_id = did; 
@@ -374,19 +398,33 @@ let new_order_txn wid dw did cw cd cid wt dt ot st it nort is =
 	let newo = {no_o_id = oid;
 	            no_d_id =  did;
 	            no_w_id = wid} in 
-	List.append ot [o];
-	List.append nort [newo] ;
-	let sl = List.map (fun x -> retrieve_stock (x.ol_i_id) (x.ol_supply_w_id) st) is in 
-	let il = List.map (fun x -> retrieve_item (x.ol_i_id) it) is in 
-	let oll = List.map (fun x -> {ol_o_id = oid; 
-	                              ol_d_id = did;
-	                              ol_w_id = wid;
-	                              ol_num = x.ol_num;
-	                              ol_amt = (get_price_item_id x.ol_i_id it) * x.ol_qty;
-	                              ol_i_id = x.ol_i_id;
-	                              ol_supply_w_id = x.ol_supply_w_id;
-	                              ol_qty = x.ol_qty}) is in 
-	oll
+	let _ = List.append ot [o] in 
+	let _ = List.append nort [newo] in 
+	let perform_ir r = 
+	let sr = retrieve_stock (r.ol_i_id) (r.ol_supply_w_id) st in 
+	let ir = retrieve_item (r.ol_i_id) it in 
+	let olr = {ol_o_id = oid; 
+	           ol_d_id = did;
+	           ol_w_id = wid;
+	           ol_num = r.ol_num;
+	           ol_amt = ir.i_price * r.ol_qty;
+	           ol_i_id = r.ol_i_id;
+	           ol_supply_w_id = r.ol_supply_w_id;
+	           ol_qty = r.ol_qty} in 
+	let stqr = if sr.s_qty >= r.ol_qty 
+	            then sr.s_qty - r.ol_qty
+	            else failwith "Items are not in stock" in 
+	update_stock sr.s_i_id {s_i_id = r.ol_i_id;
+	                 s_w_id = r.ol_supply_w_id;
+	                 s_qty = stqr;
+	                 s_ytd = sr.s_ytd + r.ol_qty;
+	                 s_order_cnt = sr.s_order_cnt + 1} st ;
+	List.append olt [olr] in 
+	let rec update_after_new_order rs = match rs with 
+	                                | [] -> failwith "No update"
+	                                | x :: x' -> perform_ir x :: update_after_new_order x' in 
+	update_after_new_order is 
+    
 
 
 
