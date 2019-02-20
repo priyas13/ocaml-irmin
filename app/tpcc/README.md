@@ -11,7 +11,7 @@ Suppose there is a wholesale supplier with a number of geographically distribute
     added to the order table.
   - Also the district next order is being increased by 1.
   - Also for each item an order_line record is created which is added to the order line table.
-  - Each item has the corresponding stock in the list of stock which keeps the track of the quantity of the item left in the       stock. If the stock quantity is less than the number of items requested by customer then the stock quantity is replenished     by 100. 
+  - Each item has the corresponding stock in the list of stock which keeps the track of the quantity of the item left in the       stock. If the stock quantity is less than the number of items requested by customer then the stock quantity is replenished     by 91. 
   - Stock is being updated after the new order transaction which reflects the changes in its quantity. If the new order
     request of the customer is being processed than the stock quantity is decreased by that amount.
 - Payment transaction:
@@ -20,3 +20,11 @@ Suppose there is a wholesale supplier with a number of geographically distribute
     his year to date payment field is being incremented by that amount.
   - Also the corresponding warehouse and district fields are updated to reflect changes in the year to date balance. 
   - This payment is also added to the history list.
+- Delivery transaction:
+  - It resembles the delivery that is done under a warehouse id. Processing batch of 10 new orders which are not 
+    yet delivered.
+  - It processes orders corresponding to 10 pending orders, one for each district, with 10 items per order.
+  - First we get all the districts that come under that particular warehouse id. 
+  - Then we keep track of all the new orders takes care under that district. 
+  - The corresponding entry in the new order table is deleted.
+  - We select the order with order id as same as lowest new order id and update it in the order list.
