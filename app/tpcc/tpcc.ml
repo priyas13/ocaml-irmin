@@ -279,26 +279,26 @@ end
 module Itemreq = struct 
 module OC = Counter.Make
 type atom = User_id_type.t
-type t = {ol_num: int ; 
-          ol_i_id: atom; 
-          ol_supply_w_id: atom; 
-          ol_qty: int}
-let merge3 ~ancestor v1 v2 = if (ancestor.ol_i_id = v1.ol_i_id) &&
-                                (ancestor.ol_i_id = v2.ol_i_id) &&
-                                (v1.ol_i_id = v2.ol_i_id) &&
-                                (ancestor.ol_supply_w_id = v1.ol_supply_w_id) &&
-                                (ancestor.ol_supply_w_id = v2.ol_supply_w_id) &&
-                                (v1.ol_supply_w_id = v2.ol_supply_w_id) 
+type t = {ir_num: int ; 
+          ir_i_id: atom; 
+          ir_supply_w_id: atom; 
+          ir_qty: int}
+let merge3 ~ancestor v1 v2 = if (ancestor.ir_i_id = v1.ir_i_id) &&
+                                (ancestor.ir_i_id = v2.ir_i_id) &&
+                                (v1.ir_i_id = v2.ir_i_id) &&
+                                (ancestor.ir_supply_w_id = v1.ir_supply_w_id) &&
+                                (ancestor.ir_supply_w_id = v2.ir_supply_w_id) &&
+                                (v1.ir_supply_w_id = v2.ir_supply_w_id) 
                                 then 
-                                   {ol_num = OC.merge ancestor.ol_num v1.ol_num v2.ol_num;
-                                    ol_i_id = ancestor.ol_i_id;
-                                    ol_supply_w_id = ancestor.ol_supply_w_id;
-                                    ol_qty = OC.merge ancestor.ol_qty v1.ol_qty v2.ol_qty}
+                                   {ir_num = OC.merge ancestor.ir_num v1.ir_num v2.ir_num;
+                                    ir_i_id = ancestor.ir_i_id;
+                                    ir_supply_w_id = ancestor.ir_supply_w_id;
+                                    ir_qty = OC.merge ancestor.ir_qty v1.ir_qty v2.ir_qty}
                                 else failwith "Merge not possible"
-let resolve x y = {ol_num = 0;
-                   ol_i_id = x.ol_i_id;
-                   ol_supply_w_id = x.ol_supply_w_id;
-                   ol_qty = 0}
+let resolve x y = {ir_num = 0;
+                   ir_i_id = x.ir_i_id;
+                   ir_supply_w_id = x.ir_supply_w_id;
+                   ir_qty = 0}
 end 
 
 module Tpcc = struct 
@@ -342,13 +342,19 @@ let rec retrieve_customer cid cd cw ct = match ct with
                                                          x.c_w_id = cw then x 
                                                                        else retrieve_customer cid cd cw x'
 
-let rec retrieve_order oid ow od oc ot = match ot with 
+let rec retrieve_order oid ow od ot = match ot with 
                                          | [] ->failwith "No such order"
                                          | x :: x' -> if x.o_id = oid && 
-                                                         x.o_c_id = oc && 
                                                          x.o_d_id = od &&
                                                          x.o_w_id = ow then x 
-                                                                       else retrieve_order oid ow od oc x'
+                                                                       else retrieve_order oid ow od x'
+
+let rec retrieve_orderline olid olw old olt = match olt with 
+                                               | [] -> failwith "No such orderline"
+                                               | x :: x' -> if x.ol_o_id = olid && 
+                                                               x.ol_w_id = olw &&
+                                                               x.ol_d_id = old then x
+                                                               else retrieve_orderline olid olw old x'
 
 let rec retrieve_stock siid sw st = match st with 
                                          | [] ->failwith "No such stock"
@@ -360,6 +366,54 @@ let rec retrieve_item iid it = match it with
                                          | [] ->failwith "No such stock"
                                          | x :: x' -> if x.i_id = iid then x 
                                                                       else retrieve_item iid x'
+
+let rec retrieve_all_districts_under_warehouse dw dt = match dt with 
+                                                       | [] -> failwith "No such districts"
+                                                       | x :: x' -> if x.d_w_id = dw then x :: retrieve_all_districts_under_warehouse dw x' 
+                                                                                     else retrieve_all_districts_under_warehouse dw x'
+
+let rec retrieve_all_new_orders_under_district did dw nos = match nos with 
+                                                            | [] -> failwith "No such new order"
+                                                            | x :: x' -> if x.no_w_id = dw && x.no_d_id = did 
+                                                              then x :: retrieve_all_new_orders_under_district did dw x' 
+                                                              else retrieve_all_new_orders_under_district did dw x' 
+
+let rec retrieve_all_orders cid did wid ot = match ot with 
+                                             | [] -> failwith "No such orders"
+                                             | x :: x' -> if x.o_c_id = cid && x.o_d_id = did && x.o_w_id = wid 
+                                                          then x :: retrieve_all_orders cid did wid x' 
+                                                          else retrieve_all_orders cid did wid x' 
+
+
+let rec retrieve_all_orderline oid olw old olt = match olt with 
+                                                 | [] -> failwith "No such orderline"
+                                                 | x :: x' -> if x.ol_o_id = oid &&
+                                                                 x.ol_w_id = olw &&
+                                                                 x.ol_d_id = old then x :: retrieve_all_orderline oid olw old x' 
+                                                                                 else retrieve_all_orderline oid olw old x'
+
+
+let rec retrieve_lowest_new_order nos = match nos with 
+                                        | [] -> failwith "No lowest order"
+                                        | x :: [] -> x
+                                        | x :: xs -> let v = retrieve_lowest_new_order xs in 
+                                                     if x.no_o_id < v.no_o_id then 
+                                                     x else v 
+
+let rec retrieve_top_order ot = match ot with 
+                                        | [] -> failwith "No top order"
+                                        | x :: [] -> x
+                                        | x :: xs -> let v = retrieve_top_order xs in 
+                                                     if x.o_id < v.o_id then 
+                                                     v else x 
+
+
+let rec delete_new_order no nos = match nos with 
+                                            | [] -> failwith "No new order to delete"
+                                            | x :: x' -> if x.no_o_id = no.no_o_id && 
+                                                            x.no_d_id = no.no_d_id &&
+                                                            x.no_w_id = no.no_w_id then x'
+                                                                                   else delete_new_order no x'  
 
 let update_warehouse wid wt amt = let wh = retrieve_warehouse wid wt in 
                                    {w_id = wid; 
@@ -403,13 +457,32 @@ let update_customer_after_payment_txn cid cd cw ct amt = let c = retrieve_custom
 
 let rec update_stock sid s st = match st with 
                              | [] -> failwith "No such stock"
-                             | x :: x' ->  if x.s_i_id = sid then s 
-                                                             else update_stock sid s x' 
+                             | x :: x' ->  if x.s_i_id = sid then s :: x' 
+                                                             else x :: update_stock sid s x' 
 
 let rec update_district did d dt = match dt with 
                                    | [] -> failwith "No such district"
-                                   | x :: x' -> if x.d_id = did then d 
-                                                                else update_district did d x'
+                                   | x :: x' -> if x.d_id = did then d :: x' 
+                                                                else x :: update_district did d x'
+
+let rec update_order oid o ot = match ot with 
+                             | [] -> failwith "No such stock"
+                             | x :: x' ->  if x.o_id = oid then o :: x' 
+                                                           else x :: update_order oid o x'
+
+let rec update_customer cid c ct = match ct with 
+                                   | [] -> failwith "No such customer"
+                                   | x :: xt -> if x.c_id = cid then c :: xt 
+                                                                else x :: update_customer cid c xt
+
+let rec update_orderline olid ol olt = match olt with 
+                                       | [] -> failwith "No such orderline"
+                                       | x :: x' -> if x.ol_o_id = olid then ol :: x' 
+                                                                        else x :: update_orderline olid ol x' 
+
+let rec get_sum_amts_ol olt = match olt with 
+                              | [] -> 0
+                              | x :: x' -> x.ol_amt + get_sum_amts_ol x'
 
 let get_last_order ol = OO.get ol (List.length ol - 1)
 
@@ -461,17 +534,80 @@ let new_order_txn wid dw did cw cd cid wt dt ot st it nort olt is =
 	           ol_qty = r.ol_qty} in 
 	let stqr = if sr.s_qty >= r.ol_qty + 10 
 	            then sr.s_qty - r.ol_qty
-	            else sr.s_qty - r.ol_qty + 100 in 
-	update_stock sr.s_i_id {s_i_id = r.ol_i_id;
+	            else sr.s_qty - r.ol_qty + 91 in 
+	let _ = update_stock sr.s_i_id {s_i_id = r.ol_i_id;
 	                 s_w_id = r.ol_supply_w_id;
 	                 s_qty = stqr;
 	                 s_ytd = sr.s_ytd + r.ol_qty;
-	                 s_order_cnt = sr.s_order_cnt + 1} st ;
+	                 s_order_cnt = sr.s_order_cnt + 1} st in 
 	List.append olt [olr] in 
 	let rec update_after_new_order rs = match rs with 
 	                                | [] -> failwith "No update"
 	                                | x :: x' -> perform_ir x :: update_after_new_order x' in 
 	update_after_new_order is 
+
+let delivery_txn wid dt ot ct nos olt = 
+	let ds =  retrieve_all_districts_under_warehouse wid dt in 
+	let perform_d d = 
+	 let noords = retrieve_all_new_orders_under_district d.d_id wid nos in
+	 let no_lowest = retrieve_lowest_new_order noords in  
+	 let  _ = delete_new_order no_lowest noords in 
+	 let o = retrieve_order no_lowest.no_o_id wid d.d_id ot in
+     let _ = update_order o.o_id {o_id =   no_lowest.no_o_id;
+                                   o_c_id = o.o_c_id;
+                                   o_d_id = d.d_id;
+                                   o_w_id = wid;
+                                   o_ol_ct = o.o_ol_ct} in
+     let _ = update_orderline o.o_id {ol_o_id = o.o_id;
+                                      ol_d_id = o.o_d_id;
+                                      ol_w_id = o.o_w_id;
+                                      ol_num = (retrieve_orderline o.o_id o.o_w_id o.o_d_id olt).ol_num;
+                                      ol_amt = (retrieve_orderline o.o_id o.o_w_id o.o_d_id olt).ol_amt;
+                                      ol_i_id = (retrieve_orderline o.o_id o.o_w_id o.o_d_id olt).ol_i_id;
+                                      ol_supply_w_id = (retrieve_orderline o.o_id o.o_w_id o.o_d_id olt).ol_supply_w_id;
+                                      ol_qty = (retrieve_orderline o.o_id o.o_w_id o.o_d_id olt).ol_qty} in 
+     let ols = retrieve_all_orderline o.o_id o.o_w_id o.o_d_id olt in 
+     let amt = get_sum_amts_ol ols in 
+     let c = retrieve_customer o.o_c_id d.d_id wid ct in
+     update_customer c.c_id {c_id = o.o_c_id;
+                                     c_d_id = d.d_id;
+                                     c_w_id = wid;
+                                     c_ytd = c.c_ytd;
+                                     c_payment_ct = c.c_payment_ct;
+                                     c_bal = c.c_bal + amt;
+                                     c_delivery_ct = c.c_delivery_ct + 1} in 
+    let rec update_after_delivery_txn ds = match ds with 
+                                      | [] -> failwith "No update"
+                                      | x :: x' -> perform_d x :: update_after_delivery_txn x' in 
+    update_after_delivery_txn ds 
+
+
+ let order_status_txn cwid cdid cid ct ot olt = 
+  let c = retrieve_customer cid cdid cwid ct in 
+  let ors = retrieve_all_orders cid cdid cwid ot in 
+  let o = retrieve_top_order ors in 
+  let ols = retrieve_all_orderline o.o_id o.o_w_id o.o_d_id olt in 
+  (c.c_bal, ols)
+
+
+ let stock_level_txn wid dwid did dt olt st = 
+  let dist = retrieve_district did dwid dt in 
+  let nextoid = dist.d_next_o_id in 
+  let rec get_orderlines olt = match olt with 
+                           | [] -> failwith "no such orders"
+                           |  x :: x' -> if ((nextoid - 20) <= x.ol_o_id) && (x.ol_o_id < nextoid) 
+                                         then x :: get_orderlines x' 
+                                         else get_orderlines x' in
+  let perform_st ol =
+     let stk = retrieve_stock ol.ol_i_id wid st in 
+     (ol, stk) in  
+  let rec update_stock_level_txn olt = match olt with 
+                                 | [] -> failwith "No update"
+                                 | x :: x' -> perform_st x :: update_stock_level_txn x' in
+  (update_stock_level_txn (get_orderlines olt))
+
+
+
 
 
 let rec merge ~ancestor v1 v2 = {wt = OW.merge3 ancestor.wt v1.wt v2.wt;
@@ -484,67 +620,4 @@ let rec merge ~ancestor v1 v2 = {wt = OW.merge3 ancestor.wt v1.wt v2.wt;
                                  it = OI.merge3 ancestor.it v1.it v2.it;
                                  irt = OIR.merge3 ancestor.irt v1.irt v2.irt;
                                  ht = OH.merge3 ancestor.ht v1.ht v2.ht}
-    
-
-
-
-
-
-(* let order_status_txn oid cw cd cid ct ot ct = 
-	let c = retrieve_customer cid cd cw ct in 
-	let o = retrieve_order oid cw cd cid ot in *)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- 
-end 
+   end
