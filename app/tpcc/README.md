@@ -28,3 +28,5 @@ Suppose there is a wholesale supplier with a number of geographically distribute
   - Then we keep track of all the new orders takes care under that district. 
   - The corresponding entry in the new order table is deleted.
   - We select the order with order id as same as lowest new order id and update it in the order list.
+- Stock level transaction:
+ - (** NEED TO WRITE **)
