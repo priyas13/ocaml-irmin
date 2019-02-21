@@ -1,11 +1,10 @@
-
-module ICanvas =
-  struct
-module OM = Canvas.Canvas
-open OM
 open Lwt.Infix
 open Irmin_unix
 open Printf
+
+module OM = Canvas.Canvas
+open OM
+
 module K = Irmin.Hash.SHA1
 
 module type Config = sig
@@ -355,4 +354,4 @@ module MakeVersioned (Config: Config)  = struct
               (fun st -> m >>= (fun a -> Lwt.return (a, st)) : 'a t)
           end 
       end
-    end 
+    
