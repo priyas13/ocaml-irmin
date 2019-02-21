@@ -2,7 +2,7 @@ open Lwt.Infix
 open Irmin_unix
 open Printf
 
-module OM = Canvas.Canvas
+module OM = Canvas.Make
 
 module K = Irmin.Hash.SHA1
 
