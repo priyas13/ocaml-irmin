@@ -23,11 +23,12 @@ module MakeVersioned (Config: Config)  = struct
 
   type node = {tl_t:K.t; tr_t:K.t; bl_t:K.t; br_t:K.t}
 
-  type madt = 
+  type t = 
    | N of pixel 
    | B of node
 
   module AO_value = struct
+    type madt = t 
     type t = madt
   
     let pixel = 
