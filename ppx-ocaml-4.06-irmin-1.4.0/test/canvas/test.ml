@@ -21,7 +21,7 @@ let module MkConfig (Vars: sig val root: string end) : Icanvas.Config = struct
 end in 
 
 let module CInit = MkConfig(struct let root = "/tmp/repos/canvas.git" end) in 
-let module MInit = Icanvas.MakeVersioned(CInit) in 
+let module MInit = Canvas_derived.ICanvas.MakeVersioned(CInit) in 
 let module M = Canvas.Make in 
 let module Vpst = MInit.Vpst in 
 
