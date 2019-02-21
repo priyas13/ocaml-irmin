@@ -38,7 +38,7 @@ module MakeVersioned (Config: Config)  = struct
       |> sealr
 
 
-    let mknode t = 
+    let node = 
       let open Irmin.Type in
       record "node" (fun tl_t tr_t bl_t br_t -> {tl_t;tr_t;bl_t;br_t})
       |+ field "tl_t" K.t (fun t -> t.tl_t)
@@ -47,16 +47,15 @@ module MakeVersioned (Config: Config)  = struct
       |+ field "br_t" K.t (fun t -> t.br_t)
       |> sealr
 
-    and mkt node =
+
+    let t =
       let open Irmin.Type in
       variant "t" (fun vp np -> function
           | N v -> vp v  
           | B n -> np n)
       |~ case1 "N" pixel (fun x -> N x)
       |~ case1 "B" node (fun x -> B x)
-      |> sealv 
-
-    let node, t = let open Irmin.Type in mu2 (fun node t -> mknode t, mkt node)
+      |> sealv
 
     let pp = Irmin.Type.pp_json ~minify:false t
   
@@ -229,6 +228,7 @@ module MakeVersioned (Config: Config)  = struct
     val return : 'a -> 'a t
     val bind: 'a t -> ('a -> 'b t) -> 'b t
     val with_init_version_do: OM.t -> 'a t -> 'a 
+    val with_remote_version_do: string -> 'a t -> 'a
     val fork_version: 'a t -> unit t
     val get_latest_version: unit -> OM.t t
     val sync_next_version: ?v:OM.t -> OM.t t
@@ -284,7 +284,7 @@ module MakeVersioned (Config: Config)  = struct
         Lwt.return ((), {st with next_id=st.next_id+1})
       end
 
-       let get_latest_version () : OM.t t = fun (st: st) ->
+    let get_latest_version () : OM.t t = fun (st: st) ->
       BC_store.read st.local path >>= fun (vop:BC_value.t option) ->
       let v = from_just vop "get_latest_version"  in
       BC_value.to_adt v >>= fun td ->
@@ -301,15 +301,24 @@ module MakeVersioned (Config: Config)  = struct
           | Ok _ -> Lwt.return ((),st)
           | Error _ -> failwith "Error while pulling the remote")
 
-    let fork_remote remote_uri = fun (st: st) ->
+    let with_remote_version_do remote_uri m = 
+      Lwt_main.run 
+        begin
+          BC_store.init () >>= fun repo -> 
+          BC_store.master repo >>= fun m_br -> 
+          let remote = Irmin.remote_uri remote_uri in
+          BC_store.Sync.pull m_br remote `Set >>= fun res ->
+          (match res with
+              | Ok _ -> Lwt.return ()
+              | Error _ -> failwith "Error while \
+                                     \pulling the remote") >>= fun _ ->
+          BC_store.clone m_br "1_local" >>= fun t_br ->
+          let st = {master=m_br; local=t_br; name="1"; next_id=1} in
+          m st >>= fun (a,_) -> Lwt.return a
+        end
       (* Fork master from remote master *)
-      let remote = Irmin.remote_uri remote_uri in
-      BC_store.Sync.pull st.master remote `Set >>= fun res ->
-      (match res with
-          | Ok _ -> Lwt.return ((),st)
-          | Error _ -> failwith "Error while pulling the remote")
 
-   let sync_next_version ?v : OM.t t = fun (st: st) ->
+    let sync_next_version ?v : OM.t t = fun (st: st) ->
       (* How do you commit the next version? Simply update path?
        * GK:Yes *)
       (* 1. Commit to the local branch *)
@@ -328,8 +337,6 @@ module MakeVersioned (Config: Config)  = struct
       get_latest_version () st
 
     let liftLwt (m: 'a Lwt.t) : 'a t = fun st ->
-
       m >>= fun a -> Lwt.return (a,st)
-
-end
+	end 
 end
