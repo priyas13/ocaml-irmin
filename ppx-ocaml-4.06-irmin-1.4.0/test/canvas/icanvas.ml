@@ -25,50 +25,38 @@ module ICanvas =
           | N of pixel 
         module IrminConvert =
           struct
-            let pixel =
-              let open Irmin.Type in
-                ((((record "pixel" (fun r -> fun g -> fun b -> { r; g; b }))
-                     |+ (field "r" Irmin.Type.char (fun t -> t.r)))
-                    |+ (field "g" Irmin.Type.char (fun t -> t.g)))
-                   |+ (field "b" Irmin.Type.char (fun t -> t.b)))
-                  |> sealr
-            let mknode t =
-              let open Irmin.Type in
-                (((((record "node"
-                       (fun tl_t ->
-                          fun tr_t ->
-                            fun bl_t ->
-                              fun br_t -> { tl_t; tr_t; bl_t; br_t }))
-                      |+ (field "tl_t" K.t (fun t -> t.tl_t)))
-                     |+ (field "tr_t" K.t (fun t -> t.tr_t)))
-                    |+ (field "bl_t" K.t (fun t -> t.bl_t)))
-                   |+ (field "br_t" K.t (fun t -> t.br_t)))
-                  |> sealr
-            and mkmadt node =
-              let open Irmin.Type in
-                (((variant "madt"
-                     (fun b ->
-                        fun n -> function | B a0 -> b a0 | N a0 -> n a0))
-                    |~ (case1 "B" node (fun x -> B x)))
-                   |~ (case1 "N" pixel (fun x -> N x)))
-                  |> sealv
-          end
-        module IrminConvertTie =
-          struct
-            let () = ()
-            let () = ()
-            and (node, madt) =
-              let open Irmin.Type in
-                mu2
-                  (fun node ->
-                     fun madt ->
-                       ((IrminConvert.mknode madt),
-                         (IrminConvert.mkmadt node)))
+              let pixel = 
+      let open Irmin.Type in
+      record "pixel" (fun r g b -> {r; g; b})
+      |+ field "r" char (fun t -> t.r)
+      |+ field "g" char (fun t -> t.g)
+      |+ field "b" char (fun t -> t.b)
+      |> sealr
+
+
+    let node = 
+      let open Irmin.Type in
+      record "node" (fun tl_t tr_t bl_t br_t -> {tl_t;tr_t;bl_t;br_t})
+      |+ field "tl_t" K.t (fun t -> t.tl_t)
+      |+ field "tr_t" K.t (fun t -> t.tr_t)
+      |+ field "bl_t" K.t (fun t -> t.bl_t)
+      |+ field "br_t" K.t (fun t -> t.br_t)
+      |> sealr
+
+
+    let madt =
+      let open Irmin.Type in
+      variant "t" (fun vp np -> function
+          | N v -> vp v  
+          | B n -> np n)
+      |~ case1 "N" pixel (fun x -> N x)
+      |~ case1 "B" node (fun x -> B x)
+      |> sealv
           end
         module AO_value =
           (struct
              type t = madt
-             let t = IrminConvertTie.madt
+             let t = IrminConvert.madt
              let pp = Irmin.Type.pp_json ~minify:false t
              let of_string s =
                let decoder = Jsonm.decoder (`String s) in
