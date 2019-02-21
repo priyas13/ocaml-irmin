@@ -98,29 +98,17 @@ module ICanvas =
             let add t v =
               (S.add t v) >>=
                 (fun k -> ((!on_add) k v) >>= (fun _ -> Lwt.return k))
-            let rec add_adt t a =
-              (add t) =<<
-                 (match a with
-                  | Canvas.B a0 ->
-                      (match a0 with
-                       | { tl_t; tr_t; bl_t; br_t;_} ->
-                           (add_adt t tl_t) >>=
-                             ((fun tl_t' ->
-                                 (add_adt t tr_t) >>=
-                                   (fun tr_t' ->
-                                      (add_adt t bl_t) >>=
-                                        (fun bl_t' ->
-                                           (add_adt t br_t) >>=
-                                             (fun br_t' ->
-                                                Lwt.return @@
-                                                  {
-                                                    tl_t = tl_t';
-                                                    tr_t = tr_t';
-                                                    bl_t = bl_t';
-                                                    br_t = br_t'
-                                                  }))))))
-                        >>= ((fun a0' -> Lwt.return @@ (B a0')))
-                  | Canvas.N a0 -> Lwt.return @@ (N a0)) 
+              let rec add_adt t (a:OM.t) : K.t Lwt.t =
+    add t =<<
+      (match a with
+       | OM.N {r;g;b} -> Lwt.return @@ N {r;g;b}
+       | OM.B {tl_t;tr_t;bl_t;br_t} -> 
+         (add_adt t tl_t >>= fun tl_t' ->
+          add_adt t tr_t >>= fun tr_t' ->
+          add_adt t bl_t >>= fun bl_t' ->
+          add_adt t br_t >>= fun br_t' ->
+          Lwt.return @@ B {tl_t=tl_t'; tr_t=tr_t'; 
+                           bl_t=bl_t'; br_t=br_t'}))
             let rec read_adt t (k : K.t) =
               ((find t k) >>=
                  (fun aop ->
