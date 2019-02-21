@@ -22,10 +22,12 @@ module ICanvas =
           br_t: K.t }
         and madt =
           | B of node 
-          | N of pixel 
-        module IrminConvert =
-          struct
-              let pixel = 
+          | N of pixel
+    
+        module AO_value =
+          (struct
+             type t = madt
+                       let pixel = 
       let open Irmin.Type in
       record "pixel" (fun r g b -> {r; g; b})
       |+ field "r" char (fun t -> t.r)
@@ -52,11 +54,7 @@ module ICanvas =
       |~ case1 "N" pixel (fun x -> N x)
       |~ case1 "B" node (fun x -> B x)
       |> sealv
-          end
-        module AO_value =
-          (struct
-             type t = madt
-             let t = IrminConvert.madt
+      
              let pp = Irmin.Type.pp_json ~minify:false t
              let of_string s =
                let decoder = Jsonm.decoder (`String s) in
