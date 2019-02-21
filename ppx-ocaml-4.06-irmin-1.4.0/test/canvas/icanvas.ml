@@ -97,11 +97,11 @@ module MakeVersioned (Config: Config)  = struct
    * processing. add_adt can use physicaly equality on OM.t objects
    * for faster lookups. read_adt memoization is straightforward.
    *)
-  let rec add_adt t (a:Canvas.t) : K.t Lwt.t =
+  let rec add_adt t (a:OM.t) : K.t Lwt.t =
     add t =<<
       (match a with
-       | Canvas.N {r;g;b} -> Lwt.return @@ N {r;g;b}
-       | Canvas.B {tl_t;tr_t;bl_t;br_t} -> 
+       | OM.N {r;g;b} -> Lwt.return @@ N {r;g;b}
+       | OM.B {tl_t;tr_t;bl_t;br_t} -> 
          (add_adt t tl_t >>= fun tl_t' ->
           add_adt t tr_t >>= fun tr_t' ->
           add_adt t bl_t >>= fun bl_t' ->
@@ -109,30 +109,30 @@ module MakeVersioned (Config: Config)  = struct
           Lwt.return @@ B {tl_t=tl_t'; tr_t=tr_t'; 
                            bl_t=bl_t'; br_t=br_t'}))
 
-  let rec read_adt t (k:K.t) : Canvas.t Lwt.t =
+  let rec read_adt t (k:K.t) : OM.t Lwt.t =
     find t k >>= fun aop ->
     let a = from_just aop "to_adt" in
     match a with
-      | N {r;g;b} -> Lwt.return @@ Canvas.N {r;g;b}
+      | N {r;g;b} -> Lwt.return @@ OM.N {r;g;b}
       | B {tl_t;tr_t;bl_t;br_t} ->
         (read_adt t tl_t >>= fun tl_t' ->
          read_adt t tr_t >>= fun tr_t' ->
          read_adt t bl_t >>= fun bl_t' ->
          read_adt t br_t >>= fun br_t' ->
-         Lwt.return @@ Canvas.B {Canvas.tl_t=tl_t'; Canvas.tr_t=tr_t'; 
-                             Canvas.bl_t=bl_t'; Canvas.br_t=br_t'})
+         Lwt.return @@ OM.B {OM.tl_t=tl_t'; OM.tr_t=tr_t'; 
+                             OM.bl_t=bl_t'; OM.br_t=br_t'})
   end
  
   module BC_value = struct
     include AO_value
     
-    let of_adt (a:Canvas.t) : t Lwt.t  =
+    let of_adt (a:OM.t) : t Lwt.t  =
       AO_store.create () >>= fun ao_store -> 
       let aostore_add adt =
         AO_store.add_adt ao_store adt in
       match a with
-       | Canvas.N {r;g;b} -> Lwt.return @@ N {r;g;b}
-       | Canvas.B {tl_t;tr_t;bl_t;br_t} -> 
+       | OM.N {r;g;b} -> Lwt.return @@ N {r;g;b}
+       | OM.B {tl_t;tr_t;bl_t;br_t} -> 
          (aostore_add tl_t >>= fun tl_t' ->
           aostore_add tr_t >>= fun tr_t' ->
           aostore_add bl_t >>= fun bl_t' ->
@@ -140,19 +140,19 @@ module MakeVersioned (Config: Config)  = struct
           Lwt.return @@ B {tl_t=tl_t'; tr_t=tr_t'; 
                            bl_t=bl_t'; br_t=br_t'})
 
-    let to_adt (t:t) : Canvas.t Lwt.t =
+    let to_adt (t:t) : OM.t Lwt.t =
       AO_store.create () >>= fun ao_store ->
       let aostore_read k =
         AO_store.read_adt ao_store k in
       match t with
-        | N {r;g;b} -> Lwt.return @@ Canvas.N {r;g;b}
+        | N {r;g;b} -> Lwt.return @@ OM.N {r;g;b}
         | B {tl_t;tr_t;bl_t;br_t} ->
           (aostore_read tl_t >>= fun tl_t' ->
            aostore_read tr_t >>= fun tr_t' ->
            aostore_read bl_t >>= fun bl_t' ->
            aostore_read br_t >>= fun br_t' ->
-           Lwt.return @@ Canvas.B {Canvas.tl_t=tl_t'; Canvas.tr_t=tr_t'; 
-                               Canvas.bl_t=bl_t'; Canvas.br_t=br_t'})
+           Lwt.return @@ OM.B {OM.tl_t=tl_t'; OM.tr_t=tr_t'; 
+                               OM.bl_t=bl_t'; OM.br_t=br_t'})
 
     let rec merge ~(old:t Irmin.Merge.promise) (v1:t) (v2:t) =
       let open Irmin.Merge.Infix in
@@ -160,7 +160,7 @@ module MakeVersioned (Config: Config)  = struct
       to_adt (from_just old "merge") >>= fun oldv  ->
       to_adt v1 >>= fun v1  ->
       to_adt v2 >>= fun v2 ->
-      let v = Canvas.merge oldv v1 v2 in
+      let v = OM.merge oldv v1 v2 in
       of_adt v >>= fun merged_v ->
       Irmin.Merge.ok merged_v
 
@@ -222,11 +222,11 @@ module MakeVersioned (Config: Config)  = struct
     type 'a t
     val return : 'a -> 'a t
     val bind: 'a t -> ('a -> 'b t) -> 'b t
-    val with_init_version_do: Canvas.t -> 'a t -> 'a 
+    val with_init_version_do: OM.t -> 'a t -> 'a 
     val with_remote_version_do: string -> 'a t -> 'a
     val fork_version: 'a t -> unit t
-    val get_latest_version: unit -> Canvas.t t
-    val sync_next_version: ?v:Canvas.t -> Canvas.t t
+    val get_latest_version: unit -> OM.t t
+    val sync_next_version: ?v:OM.t -> OM.t t
     val liftLwt: 'a Lwt.t -> 'a t
     val pull_remote: string -> unit t
   end
@@ -249,7 +249,7 @@ module MakeVersioned (Config: Config)  = struct
     let bind (m1: 'a t) (f: 'a -> 'b t) : 'b t = 
       fun st -> (m1 st >>= fun (a,st') -> f a st')
 
-    let with_init_version_do (v: Canvas.t) (m: 'a t) =
+    let with_init_version_do (v: OM.t) (m: 'a t) =
       Lwt_main.run 
         begin
           BC_store.init () >>= fun repo -> 
@@ -279,7 +279,7 @@ module MakeVersioned (Config: Config)  = struct
         Lwt.return ((), {st with next_id=st.next_id+1})
       end
 
-    let get_latest_version () : Canvas.t t = fun (st: st) ->
+    let get_latest_version () : OM.t t = fun (st: st) ->
       BC_store.read st.local path >>= fun (vop:BC_value.t option) ->
       let v = from_just vop "get_latest_version"  in
       BC_value.to_adt v >>= fun td ->
@@ -313,7 +313,7 @@ module MakeVersioned (Config: Config)  = struct
         end
       (* Fork master from remote master *)
 
-    let sync_next_version ?v : Canvas.t t = fun (st: st) ->
+    let sync_next_version ?v : OM.t t = fun (st: st) ->
       (* How do you commit the next version? Simply update path?
        * GK:Yes *)
       (* 1. Commit to the local branch *)
