@@ -96,7 +96,7 @@ module MakeVersioned (Config: Config)  = struct
    * processing. add_adt can use physicaly equality on OM.t objects
    * for faster lookups. read_adt memoization is straightforward.
    *)
-  let rec add_adt t (a:Canvas.t) : K.t Lwt.t =
+  let rec add_adt t (a:Canvas.Canvas.t) : K.t Lwt.t =
     add t =<<
       (match a with
        | Canvas.N {r;g;b} -> Lwt.return @@ N {r;g;b}
