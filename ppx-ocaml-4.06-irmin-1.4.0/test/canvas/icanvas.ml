@@ -3,7 +3,6 @@ open Irmin_unix
 open Printf
 
 module OM = Canvas.Canvas
-open OM
 
 module K = Irmin.Hash.SHA1
 
