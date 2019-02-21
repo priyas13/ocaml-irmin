@@ -131,8 +131,8 @@ module MakeVersioned (Config: Config)  = struct
       let aostore_add adt =
         AO_store.add_adt ao_store adt in
       match a with
-       | OM.N {r;g;b} -> Lwt.return @@ N {r;g;b}
-       | OM.B {tl_t;tr_t;bl_t;br_t} -> 
+       | Canvas.N {r;g;b} -> Lwt.return @@ N {r;g;b}
+       | Canvas.B {tl_t;tr_t;bl_t;br_t} -> 
          (aostore_add tl_t >>= fun tl_t' ->
           aostore_add tr_t >>= fun tr_t' ->
           aostore_add bl_t >>= fun bl_t' ->
