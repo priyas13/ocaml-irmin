@@ -99,7 +99,7 @@ module ICanvas =
               (S.add t v) >>=
                 (fun k -> ((!on_add) k v) >>= (fun _ -> Lwt.return k))
             let rec add_adt t a =
-              ((add t) =<<
+              (add t) =<<
                  (match a with
                   | Canvas.B a0 ->
                       (match a0 with
@@ -120,7 +120,7 @@ module ICanvas =
                                                     br_t = br_t'
                                                   }))))))
                         >>= ((fun a0' -> Lwt.return @@ (B a0')))
-                  | Canvas.N a0 -> Lwt.return @@ (N a0)) : K.t Lwt.t)
+                  | Canvas.N a0 -> Lwt.return @@ (N a0)) 
             let rec read_adt t (k : K.t) =
               ((find t k) >>=
                  (fun aop ->
