@@ -28,8 +28,8 @@ module MakeVersioned (Config: Config)  = struct
    | B of node
 
   module AO_value : Irmin.Contents.Conv with type t = t = struct
-    type madt = t 
-    type t = madt
+    type vt = t
+    type t = vt
   
     let pixel = 
       let open Irmin.Type in
@@ -123,8 +123,14 @@ module MakeVersioned (Config: Config)  = struct
          Lwt.return @@ OM.B {OM.tl_t=tl_t'; OM.tr_t=tr_t'; 
                              OM.bl_t=bl_t'; OM.br_t=br_t'})
   end
+
+  module type IRMIN_STORE_VALUE = sig
+    include Irmin.Contents.S
+    val of_adt: OM.t -> t Lwt.t
+    val to_adt: t -> OM.t Lwt.t
+  end
  
-  module BC_value = struct
+  module BC_value: IRMIN_STORE_VALUE with type t = t = struct
     include AO_value
     
     let of_adt (a:OM.t) : t Lwt.t  =
@@ -336,4 +342,3 @@ module MakeVersioned (Config: Config)  = struct
       m >>= fun a -> Lwt.return (a,st)
   end 
 end
-end 
