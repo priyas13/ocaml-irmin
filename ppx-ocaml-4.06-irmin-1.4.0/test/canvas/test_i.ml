@@ -10,7 +10,7 @@ end
 (* Canvas *)
 let _ =
   U.print_header "Canvas";
-let module MkConfig (Vars: sig val root: string end) : ICanvas.Config = struct
+let module MkConfig (Vars: sig val root: string end) : Icanvas.ICanvas.Config = struct
   let root = Vars.root
   let shared = "/tmp/repos/shared.git"
 
@@ -21,7 +21,7 @@ let module MkConfig (Vars: sig val root: string end) : ICanvas.Config = struct
 end in 
 
 let module CInit = MkConfig(struct let root = "/tmp/repos/canvas.git" end) in 
-let module MInit = ICanvas.MakeVersioned(CInit) in 
+let module MInit = Icanvas.ICanvas.MakeVersioned(CInit) in 
 let module M = Canvas.Canvas in 
 let module Vpst = MInit.Vpst in 
 
