@@ -14,6 +14,7 @@ module ICanvas =
       | None -> failwith @@ (msg ^ ": Expected Some. Got None.")
     module MakeVersioned(Config:Config) =
       struct
+        type pixel = {r:char; g:char; b:char}
         type node = {
           tl_t: K.t ;
           tr_t: K.t ;
