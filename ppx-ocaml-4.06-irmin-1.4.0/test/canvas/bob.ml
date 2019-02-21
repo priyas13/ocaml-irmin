@@ -20,7 +20,7 @@ end
 let _ =
   U.print_header "Canvas"
 
-module MkConfig (Vars: sig val root: string end) : Icanvas.Config = struct
+module MkConfig (Vars: sig val root: string end) : Canvas_derived.ICanvas.Config = struct
   let root = Vars.root
   let shared = "/tmp/repos/shared.git"
 
