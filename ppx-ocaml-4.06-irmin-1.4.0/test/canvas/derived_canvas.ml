@@ -556,12 +556,11 @@ module ICanvas =
                  Lwt.return ((), { st with next_id = (st.next_id + 1) }) : 
               unit t)
             let get_latest_version () =
-              (fun (st : st) ->
+              fun (st : st) ->
                  (BC_store.read st.local path) >>=
                    (fun (vop : BC_value.t option) ->
                       let v = from_just vop "get_latest_version" in
-                      (BC_value.to_adt v) >>= (fun td -> Lwt.return (td, st))) : 
-              Derived_canvas.Canvas.t t)
+                      (BC_value.to_adt v) >>= (fun td -> Lwt.return (td, st))) 
             let pull_remote remote_uri (st : st) =
               let cinfo =
                 info
