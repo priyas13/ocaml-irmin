@@ -24,9 +24,8 @@ module ICanvas =
           | B of node 
           | N of pixel
     
-        module AO_value : (Irmin.Contents.Conv with type  madt =  madt) =
+        module AO_value =
           struct
-             type madt = t
              type t = madt
                        let pixel = 
       let open Irmin.Type in
