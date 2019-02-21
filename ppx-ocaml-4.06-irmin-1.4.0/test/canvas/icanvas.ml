@@ -350,7 +350,7 @@ module MakeVersioned (Config: Config)  = struct
                            (BC_store.merge st.local ~into:(st.master)
                               ~info:cinfo)
                              >>= (fun _ -> get_latest_version () st))) : 
-              Canvas.t t)
+              OM.t t)
             let liftLwt (m : 'a Lwt.t) =
               (fun st -> m >>= (fun a -> Lwt.return (a, st)) : 'a t)
           end 
