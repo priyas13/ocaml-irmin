@@ -26,7 +26,8 @@ module ICanvas =
     
         module AO_value =
           struct
-             type t = madt
+             type madt = vt
+             type vt = madt
                        let pixel = 
       let open Irmin.Type in
       record "pixel" (fun r g b -> {r; g; b})
