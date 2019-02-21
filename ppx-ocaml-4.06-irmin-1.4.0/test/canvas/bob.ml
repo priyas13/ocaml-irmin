@@ -32,7 +32,7 @@ end
 
 module CInit = MkConfig(struct let root = "/tmp/repos/canvas.git" end)
 module MInit = Canvas_derived.ICanvas.MakeVersioned(CInit)
-module M = Canvas.Canvas
+module M = Canvas_derived.Canvas
 module Vpst = MInit.Vpst
 
 let alice_uri = "git+ssh://opam@172.18.0.2/tmp/repos/canvas.git"
