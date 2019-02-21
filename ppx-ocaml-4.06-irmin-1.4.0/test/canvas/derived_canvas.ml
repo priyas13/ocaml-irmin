@@ -561,7 +561,7 @@ module ICanvas =
                    (fun (vop : BC_value.t option) ->
                       let v = from_just vop "get_latest_version" in
                       (BC_value.to_adt v) >>= (fun td -> Lwt.return (td, st))) : 
-              Derived_Canvas.Canvas.t t)
+              Derived_canvas.Canvas.t t)
             let pull_remote remote_uri (st : st) =
               let cinfo =
                 info
