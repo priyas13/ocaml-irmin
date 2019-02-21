@@ -69,7 +69,7 @@ module ICanvas =
                        (Printf.sprintf
                           "AO_Value.of_string: Invalid_argument: %s" s) in
                res
-           end : (Irmin.Contents.Conv with type  t =  t))
+           end : (Irmin.Contents.Conv with type  madt =  madt))
         module AO_store =
           struct
             module S = ((Irmin_git.AO)(Git_unix.FS))(AO_value)
