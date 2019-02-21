@@ -22,12 +22,12 @@ module MakeVersioned (Config: Config)  = struct
 
   type node = {tl_t:K.t; tr_t:K.t; bl_t:K.t; br_t:K.t}
 
-  type t = 
+  type madt = 
    | N of pixel 
    | B of node
 
   module AO_value = struct
-    type t = vt
+    type t = madt
   
     let pixel = 
       let open Irmin.Type in
