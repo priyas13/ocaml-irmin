@@ -98,7 +98,7 @@ module ICanvas =
             let add t v =
               (S.add t v) >>=
                 (fun k -> ((!on_add) k v) >>= (fun _ -> Lwt.return k))
-            let rec add_adt t (a : Canvas.t) =
+            let rec add_adt t a =
               ((add t) =<<
                  (match a with
                   | Canvas.B a0 ->
