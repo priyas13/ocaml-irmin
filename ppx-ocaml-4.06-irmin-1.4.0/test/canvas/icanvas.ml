@@ -26,6 +26,7 @@ module ICanvas =
     
         module AO_value =
           (struct
+             type madt = t
              type t = madt
                        let pixel = 
       let open Irmin.Type in
@@ -68,7 +69,7 @@ module ICanvas =
                        (Printf.sprintf
                           "AO_Value.of_string: Invalid_argument: %s" s) in
                res
-           end : (Irmin.Contents.Conv with type  t =  madt))
+           end : (Irmin.Contents.Conv with type  t =  t))
         module AO_store =
           struct
             module S = ((Irmin_git.AO)(Git_unix.FS))(AO_value)
