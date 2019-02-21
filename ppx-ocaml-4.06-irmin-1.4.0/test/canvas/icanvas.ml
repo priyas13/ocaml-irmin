@@ -1,7 +1,7 @@
 
 module ICanvas =
   struct
-module OM = Canvas.Make
+module OM = Canvas.Canvas
 open OM
 open Lwt.Infix
 open Irmin_unix
