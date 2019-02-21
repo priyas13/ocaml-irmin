@@ -169,7 +169,7 @@ module ICanvas =
                              (fun v1 ->
                                 (to_adt v2) >>=
                                   (fun v2 ->
-                                     let v = OM.merge oldv v1 v2 in
+                                     let v = Canvas.merge oldv v1 v2 in
                                      (of_adt v) >>=
                                        (fun merged_v ->
                                           Irmin.Merge.ok merged_v)))))
