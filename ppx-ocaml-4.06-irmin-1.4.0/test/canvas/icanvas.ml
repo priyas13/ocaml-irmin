@@ -27,7 +27,7 @@ module MakeVersioned (Config: Config)  = struct
    | N of pixel 
    | B of node
 
-  module AO_value = struct
+  module AO_value : Irmin.Contents.Conv with type t = t = struct
     type madt = t 
     type t = madt
   
