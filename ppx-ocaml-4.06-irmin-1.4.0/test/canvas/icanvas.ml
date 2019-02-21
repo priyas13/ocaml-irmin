@@ -1,10 +1,11 @@
+
+module ICanvas =
+  struct
+module OM = Canvas.Make
+open OM
 open Lwt.Infix
 open Irmin_unix
 open Printf
-module ICanvas =
-  struct
-module OM = Canvas.Canvas
-open OM
 module K = Irmin.Hash.SHA1
 
 module type Config = sig
@@ -292,54 +293,66 @@ module MakeVersioned (Config: Config)  = struct
       BC_value.to_adt v >>= fun td ->
       Lwt.return (td,st)
 
-    let pull_remote remote_uri = fun (st: st) ->
-      (* Pull and merge remote to master *)
-      let cinfo = info (sprintf "Merging remote(%s) to local master" 
-                          remote_uri) in
-      let remote = Irmin.remote_uri remote_uri in
-      BC_store.Sync.pull st.master remote 
-                            (`Merge  cinfo) >>= fun res -> 
-      (match res with
-          | Ok _ -> Lwt.return ((),st)
-          | Error _ -> failwith "Error while pulling the remote")
-
-    let with_remote_version_do remote_uri m = 
-      Lwt_main.run 
-        begin
-          BC_store.init () >>= fun repo -> 
-          BC_store.master repo >>= fun m_br -> 
-          let remote = Irmin.remote_uri remote_uri in
-          BC_store.Sync.pull m_br remote `Set >>= fun res ->
-          (match res with
-              | Ok _ -> Lwt.return ()
-              | Error _ -> failwith "Error while \
-                                     \pulling the remote") >>= fun _ ->
-          BC_store.clone m_br "1_local" >>= fun t_br ->
-          let st = {master=m_br; local=t_br; name="1"; next_id=1} in
-          m st >>= fun (a,_) -> Lwt.return a
-        end
-      (* Fork master from remote master *)
-
-    let sync_next_version ?v : OM.t t = fun (st: st) ->
-      (* How do you commit the next version? Simply update path?
-       * GK:Yes *)
-      (* 1. Commit to the local branch *)
-      (match v with 
-       | None -> Lwt.return ()
-       | Some v -> 
-         BC_value.of_adt v >>= fun v' -> 
-         BC_store.update ~msg:"Committing local state" 
-                         st.local path v') >>= fun () ->
-      (* 2. Merge local master to the local branch *)
-      let cinfo = info "Merging master into local" in
-      BC_store.merge st.master ~into:st.local ~info:cinfo >>= fun _ ->
-      (* 3. Merge local branch to the local master *)
-      let cinfo = info "Merging local into master" in
-      BC_store.merge st.local ~into:st.master ~info:cinfo >>= fun _ ->
-      get_latest_version () st
-
-    let liftLwt (m: 'a Lwt.t) : 'a t = fun st ->
-      m >>= fun a -> Lwt.return (a,st)
-  end 
-end
-end 
+    let pull_remote remote_uri (st : st) =
+              let cinfo =
+                info
+                  (Printf.sprintf "Merging remote(%s) to local master"
+                     remote_uri) in
+              let remote = Irmin.remote_uri remote_uri in
+              (BC_store.Sync.pull st.master remote (`Merge cinfo)) >>=
+                (fun res ->
+                   match res with
+                   | Ok _ -> Lwt.return ((), st)
+                   | Error _ -> failwith "Error while pulling the remote")
+            let with_remote_version_do remote_uri m =
+              Lwt_main.run
+                ((BC_store.init ()) >>=
+                   (fun repo ->
+                      (BC_store.master repo) >>=
+                        (fun m_br ->
+                           let remote = Irmin.remote_uri remote_uri in
+                           (BC_store.Sync.pull m_br remote `Set) >>=
+                             (fun res ->
+                                (match res with
+                                 | Ok _ -> Lwt.return ()
+                                 | Error _ ->
+                                     failwith
+                                       "Error while pulling the remote")
+                                  >>=
+                                  (fun _ ->
+                                     (BC_store.clone m_br "1_local") >>=
+                                       (fun t_br ->
+                                          let st =
+                                            {
+                                              master = m_br;
+                                              local = t_br;
+                                              name = "1";
+                                              next_id = 1
+                                            } in
+                                          (m st) >>=
+                                            (fun (a, _) -> Lwt.return a)))))))
+            let sync_next_version ?v  =
+              (fun (st : st) ->
+                 (match v with
+                  | None -> Lwt.return ()
+                  | Some v ->
+                      (BC_value.of_adt v) >>=
+                        ((fun v' ->
+                            BC_store.update ~msg:"Committing local state"
+                              st.local path v')))
+                   >>=
+                   (fun () ->
+                      let cinfo = info "Merging master into local" in
+                      (BC_store.merge st.master ~into:(st.local) ~info:cinfo)
+                        >>=
+                        (fun _ ->
+                           let cinfo = info "Merging local into master" in
+                           (BC_store.merge st.local ~into:(st.master)
+                              ~info:cinfo)
+                             >>= (fun _ -> get_latest_version () st))) : 
+              Canvas.t t)
+            let liftLwt (m : 'a Lwt.t) =
+              (fun st -> m >>= (fun a -> Lwt.return (a, st)) : 'a t)
+          end 
+      end
+    end 
