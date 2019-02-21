@@ -101,8 +101,8 @@ module ICanvas =
               let rec add_adt t (a:Canvas.t) : K.t Lwt.t =
     add t =<<
       (match a with
-       | OM.N {r;g;b} -> Lwt.return @@ N {r;g;b}
-       | OM.B {tl_t;tr_t;bl_t;br_t} -> 
+       | Canvas.N {r;g;b} -> Lwt.return @@ N {r;g;b}
+       | Canvas.B {tl_t;tr_t;bl_t;br_t} -> 
          (add_adt t tl_t >>= fun tl_t' ->
           add_adt t tr_t >>= fun tr_t' ->
           add_adt t bl_t >>= fun bl_t' ->
