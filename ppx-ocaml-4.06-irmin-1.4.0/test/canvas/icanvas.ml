@@ -54,7 +54,9 @@ module ICanvas =
       |~ case1 "N" pixel (fun x -> N x)
       |~ case1 "B" node (fun x -> B x)
       |> sealv
-      
+
+      let t = madt
+
              let pp = Irmin.Type.pp_json ~minify:false t
              let of_string s =
                let decoder = Jsonm.decoder (`String s) in
