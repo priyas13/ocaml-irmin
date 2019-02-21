@@ -129,7 +129,7 @@ let dali_mmodstr_functs tds td mn p =
                | Ptyp_var s ->
                  (* for example MCANVAS is the module type for MCanvas module *)
                  let fcname = mkaststr @@ String.uppercase_ascii s in
-                 let fcsig = Ast_helper.Mty.ident @@ Ast_convenience.lid "Tc.S0" in
+                 let fcsig = Ast_helper.Mty.ident @@ Ast_convenience.lid "Irmin.Type" in
                  Ast_helper.Mod.functor_ fcname (Some fcsig) (aux r)
                | _ -> assert false) in 
           let fcsig = Ast_helper.Mty.ident @@ Ast_convenience.lid ("M" ^ String.uppercase_ascii mn) in
@@ -216,12 +216,20 @@ let dali_madt_typedef tds td mn =
         match t with
         | { ptyp_desc = Ptyp_var x } -> 
           default_mapper.typ mapper @@ constr (Ast_convenience.lid (String.uppercase_ascii x ^ ".t")) []
-          (* This is the case where the type is user defined type, not the abstract type *)
-        | { ptyp_desc = Ptyp_constr ({ txt = Longident.Lident n }, x) } ->
+          (* This is the case where the type is suppose t *)
+        | { ptyp_desc = Ptyp_constr ({ txt = Longident.Lident n}, x) } ->
          default_mapper.typ mapper @@ 
           if n = td.ptype_name.txt then constr (Ast_convenience.lid ("K.t")) []
-          else t
-        | {ptyp_desc = Ptyp_constr ({txt = n}, x)} ->  t
+          else  (match n with
+          | "int" -> default_mapper.typ mapper @@ constr (Ast_convenience.lid ("int64")) []
+          | _ -> t)
+        | {ptyp_desc = Ptyp_constr ({txt = n}, x)} ->   
+        let tn = String.concat "." (Longident.flatten n) in
+        let prefix = (match tn with
+          | "int" -> "int64"
+          | "string" -> "string"
+          | "char" -> "char"
+          | _ -> assert false) in default_mapper.typ mapper @@ {ptyp_desc = Ptyp_var prefix; ptyp_loc = !Ast_helper.default_loc; ptyp_attributes = []}
         | x -> default_mapper.typ mapper x)} in 
   let type_dec_mapper = 
     {   
@@ -319,38 +327,7 @@ let dali_update_adt tds td mn =
             | _ -> aux y ((argn,argn) :: allargns) in
         aux (List.map (fun e -> ("t", e.pld_name.txt), e.pld_type) l) [] in
       Exp.match_ (evar ak) [Exp.case plhs prhs]
-    | Ptype_abstract -> 
-      let matchmaker l =
-        let mkarg x = "a" ^ string_of_int x in
-        let mkparg x = mkp @@ mkarg x in
-        let plhs = ptuple (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) l) in
-        let prhs =
-          let rec aux i args allargns =
-            match args with
-            | [] ->
-              let a = List.map (fun e -> evar e) @@ List.rev allargns in
-              app (evar "@@") [evar "Lwt.return"; tuple a]
-            | x :: y -> 
-              let argn = mkarg i in
-              match x.ptyp_desc with
-              | Ptyp_constr ({txt = Longident.Lident n}, _) ->
-                let argnp = mkparg i in
-                if n = td.ptype_name.txt then 
-                  app (evar ">>=") [app (evar "to_adt") [evar argn]; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
-                else
-                  let st = find_some_type tds n in
-                  (match st with
-                   | Some t ->
-                     app (evar ">>=") [kind_mapper t argn; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
-                   | None -> aux (i+1) y (argn :: allargns))
-              | _ -> aux (i+1) y (argn :: allargns) in
-          aux 0 l [] in
-        Exp.match_ (evar ak) [Exp.case plhs prhs] in 
-      (match ctd.ptype_manifest with
-       | Some ({ptyp_desc = Ptyp_constr (_, _) } as x) -> matchmaker [x]
-       | Some {ptyp_desc = Ptyp_tuple l} -> matchmaker l
-       | None -> failwith "[dalify] Open abstract types are not supported"
-       | _ -> assert false)
+    | Ptype_abstract -> evar "Lwt.return ()" 
     | Ptype_open -> assert false in
   kind_mapper td "v"
 
@@ -430,38 +407,7 @@ let dali_update_adt tds td mn =
         (aux (List.map (fun e -> ("t", e.pld_name.txt), e.pld_type) l) []) in
         (* here ak is the record *)
         Exp.match_ (evar ak) [Exp.case plhs prhs]
-    | Ptype_abstract ->       
-      let matchmaker l =
-        let mkarg x = "a" ^ string_of_int x in
-        let mkparg x = mkp @@ mkarg x in
-        let plhs = ptuple (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) l) in
-        let prhs =
-          let rec aux i args allargns =
-            match args with
-            | [] ->
-              let a = List.map (fun e -> evar e) @@ List.rev allargns in
-              app (evar "@@") [evar "Lwt.return"; tuple a]
-            | x :: y -> 
-              let argn = mkarg i in
-              match x.ptyp_desc with
-              | Ptyp_constr ({txt = Longident.Lident n}, _) ->
-                let argnp = mkparg i in
-                if n = td.ptype_name.txt then 
-                  app (evar ">>=") [app (evar "add_adt") [evar argn]; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
-                else
-                  let st = find_some_type tds n in
-                  (match st with
-                   | Some t ->
-                     app (evar ">>=") [kind_mapper t argn; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
-                   | None -> aux (i+1) y (argn :: allargns))
-              | _ -> aux (i+1) y (argn :: allargns) in
-          aux 0 l [] in
-        Exp.match_ (evar ak) [Exp.case plhs prhs] in 
-      (match ctd.ptype_manifest with
-       | Some ({ptyp_desc = Ptyp_constr (_, _) } as x) -> matchmaker [x]
-       | Some {ptyp_desc = Ptyp_tuple l} -> matchmaker l
-       | None -> failwith "[dalify] Open abstract types are not supported"
-       | _ -> assert false)
+    | Ptype_abstract ->  app (evar "@@") [evar "Lwt.return" ; constr "Int64.of_int" [(evar "a")]]
     | Ptype_open -> assert false in
   kind_mapper td "a"
 
@@ -535,38 +481,7 @@ let dali_read_adt tds td mn =
             | _ -> aux y ((argn,argn) :: allargns) in
         aux (List.map (fun e -> ("t", e.pld_name.txt), e.pld_type) l) [] in
       Exp.match_ (evar ak) [Exp.case plhs prhs]
-    | Ptype_abstract -> 
-      let matchmaker l =
-        let mkarg x = "a" ^ string_of_int x in
-        let mkparg x = mkp @@ mkarg x in
-        let plhs = ptuple (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) l) in
-        let prhs =
-          let rec aux i args allargns =
-            match args with
-            | [] ->
-              let a = List.map (fun e -> evar e) @@ List.rev allargns in
-              app (evar "@@") [evar "Lwt.return"; tuple a]
-            | x :: y -> 
-              let argn = mkarg i in
-              match x.ptyp_desc with
-              | Ptyp_constr ({txt = Longident.Lident n}, _) ->
-                let argnp = mkparg i in
-                if n = td.ptype_name.txt then 
-                  app (evar ">>=") [app (evar "to_adt") [evar argn]; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
-                else
-                  let st = find_some_type tds n in
-                  (match st with
-                   | Some t ->
-                     app (evar ">>=") [kind_mapper t argn; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
-                   | None -> aux (i+1) y (argn :: allargns))
-              | _ -> aux (i+1) y (argn :: allargns) in
-          aux 0 l [] in
-        Exp.match_ (evar ak) [Exp.case plhs prhs] in 
-      (match ctd.ptype_manifest with
-       | Some ({ptyp_desc = Ptyp_constr (_, _) } as x) -> matchmaker [x]
-       | Some {ptyp_desc = Ptyp_tuple l} -> matchmaker l
-       | None -> failwith "[dalify] Open abstract types are not supported"
-       | _ -> assert false)
+    | Ptype_abstract -> app (evar "@@") [evar "Lwt.return" ; constr "Int64.to_int" [(evar "a")]]
     | Ptype_open -> assert false in
   kind_mapper td "a"
 
@@ -640,38 +555,7 @@ let dali_of_adt tds td mn =
             | _ -> aux y ((argn,argn) :: allargns) in
         aux (List.map (fun e -> e.pld_name.txt, e.pld_type) l) [] in
       Exp.match_ (evar ak) [Exp.case plhs prhs]
-    | Ptype_abstract ->       
-      let matchmaker l =
-        let mkarg x = "a" ^ string_of_int x in
-        let mkparg x = mkp @@ mkarg x in
-        let plhs = ptuple (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) l) in
-        let prhs =
-          let rec aux i args allargns =
-            match args with
-            | [] ->
-              let a = List.map (fun e -> evar e) @@ List.rev allargns in
-              app (evar "@@") [evar "Lwt.return"; tuple a]
-            | x :: y -> 
-              let argn = mkarg i in
-              match x.ptyp_desc with
-              | Ptyp_constr ({txt = Longident.Lident n}, _) ->
-                let argnp = mkparg i in
-                if n = td.ptype_name.txt then 
-                  app (evar ">>=") [app (evar "aostore_add") [evar argn]; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
-                else
-                  let st = find_some_type tds n in
-                  (match st with
-                   | Some t ->
-                     app (evar ">>=") [kind_mapper t argn; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
-                   | None -> aux (i+1) y (argn :: allargns))
-              | _ -> aux (i+1) y (argn :: allargns) in
-          aux 0 l [] in
-        Exp.match_ (evar ak) [Exp.case plhs prhs] in 
-      (match ctd.ptype_manifest with
-       | Some ({ptyp_desc = Ptyp_constr (_, _) } as x) -> matchmaker [x]
-       | Some {ptyp_desc = Ptyp_tuple l} -> matchmaker l
-       | None -> failwith "[dalify] Open abstract types are not supported"
-       | _ -> assert false)
+    | Ptype_abstract ->  app (evar "@@") [evar "Lwt.return" ; constr "Int64.of_int" [(evar "a")]] 
     | Ptype_open -> assert false in
   kind_mapper td "a"
 
@@ -741,38 +625,7 @@ let dali_to_adt tds td mn =
             | _ -> aux y ((argn,argn) :: allargns) in
         aux (List.map (fun e -> e.pld_name.txt, e.pld_type) l) [] in
       Exp.match_ (evar ak) [Exp.case plhs prhs]
-    | Ptype_abstract -> 
-      let matchmaker l =
-        let mkarg x = "a" ^ string_of_int x in
-        let mkparg x = mkp @@ mkarg x in
-        let plhs = ptuple (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) l) in
-        let prhs =
-          let rec aux i args allargns =
-            match args with
-            | [] ->
-              let a = List.map (fun e -> evar e) @@ List.rev allargns in
-              app (evar "@@") [evar "Lwt.return"; tuple a]
-            | x :: y -> 
-              let argn = mkarg i in
-              match x.ptyp_desc with
-              | Ptyp_constr ({txt = Longident.Lident n}, _) ->
-                let argnp = mkparg i in
-                if n = td.ptype_name.txt then 
-                  app (evar ">>=") [app (evar "aostore_read") [evar argn]; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
-                else
-                  let st = find_some_type tds n in
-                  (match st with
-                   | Some t ->
-                     app (evar ">>=") [kind_mapper t argn; lam (pvar argnp) (aux (i+1) y (argnp :: allargns))]
-                   | None -> aux (i+1) y (argn :: allargns))
-              | _ -> aux (i+1) y (argn :: allargns) in
-          aux 0 l [] in
-        Exp.match_ (evar ak) [Exp.case plhs prhs] in 
-      (match ctd.ptype_manifest with
-       | Some ({ptyp_desc = Ptyp_constr (_, _) } as x) -> matchmaker [x]
-       | Some {ptyp_desc = Ptyp_tuple l} -> matchmaker l
-       | None -> failwith "[dalify] Open abstract types are not supported"
-       | _ -> assert false)
+    | Ptype_abstract -> app (evar "@@") [evar "Lwt.return" ; constr "Int64.to_int" [(evar "t")]] 
     | Ptype_open -> assert false in
   kind_mapper td "t"
 

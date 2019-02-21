@@ -125,7 +125,7 @@ let derive_to_irmin (tds:type_declaration list) =
              [rrr'; (Exp.ident ({txt = (Lident "sealr"); loc = !Ast_helper.default_loc}))])) in 
         if (List.exists (fun x -> c_ty x) l) then Vb.mk (pvar @@ ("mk" ^ mk_to_irmin_name ctd)) ty else 
         Vb.mk (pvar @@ (mk_to_irmin_name ctd)) ty
-    | Ptype_abstract ->  {pvb_pat = {ppat_desc = Ppat_any; ppat_loc= !Ast_helper.default_loc; ppat_attributes = []}; pvb_expr = {pexp_desc = Pexp_unreachable; pexp_loc = !Ast_helper.default_loc; pexp_attributes = []}; pvb_attributes = [] ; pvb_loc = !Ast_helper.default_loc}
+    | Ptype_abstract ->  {pvb_pat = punit(); pvb_expr= unit(); pvb_attributes = []; pvb_loc = !Ast_helper.default_loc}
     | Ptype_open -> assert false) in
   Str.value Nonrecursive (List.map kind_mapper tds)
 
@@ -172,8 +172,7 @@ let derive_to_irmin_tie (tds:type_declaration list) =
                                         constr ("IrminConvert" ^ "." ^ "mk" ^ (mk_to_irmin_name ctd)) [(evar ((get_core (List.hd tys))))]]))])) in 
            if tys = [] then {pvb_pat = punit(); pvb_expr= unit(); pvb_attributes = []; pvb_loc = !Ast_helper.default_loc}
            else Vb.mk (ptuple [pvar (get_core (List.hd tys)); pvar (mk_to_irmin_name ctd)]) prhs  
-   | Ptype_record l -> {pvb_pat = punit(); pvb_expr= unit(); pvb_attributes = []; pvb_loc = !Ast_helper.default_loc}
-    | Ptype_abstract ->  {pvb_pat = {ppat_desc = Ppat_any; ppat_loc= !Ast_helper.default_loc; ppat_attributes = []}; pvb_expr = {pexp_desc = Pexp_unreachable; pexp_loc = !Ast_helper.default_loc; pexp_attributes = []}; pvb_attributes = [] ; pvb_loc = !Ast_helper.default_loc}
+    | Ptype_record l -> {pvb_pat = punit(); pvb_expr= unit(); pvb_attributes = []; pvb_loc = !Ast_helper.default_loc}
+    | Ptype_abstract ->  {pvb_pat = pvar "madt"; pvb_expr= evar "Irmin.Type.int64"; pvb_attributes = []; pvb_loc = !Ast_helper.default_loc}
     | Ptype_open -> assert false) in
   Str.value Nonrecursive (List.map kind_mapper tds)
-
