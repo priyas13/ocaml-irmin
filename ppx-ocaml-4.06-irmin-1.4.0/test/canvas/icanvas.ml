@@ -109,31 +109,18 @@ module ICanvas =
           add_adt t br_t >>= fun br_t' ->
           Lwt.return @@ B {tl_t=tl_t'; tr_t=tr_t'; 
                            bl_t=bl_t'; br_t=br_t'}))
-            let rec read_adt t (k : K.t) =
-              ((find t k) >>=
-                 (fun aop ->
-                    let a = from_just aop "to_adt" in
-                    match a with
-                    | B a0 ->
-                        (match a0 with
-                         | { tl_t; tr_t; bl_t; br_t;_} ->
-                             (read_adt t tl_t) >>=
-                               ((fun tl_t' ->
-                                   (read_adt t tr_t) >>=
-                                     (fun tr_t' ->
-                                        (read_adt t bl_t) >>=
-                                          (fun bl_t' ->
-                                             (read_adt t br_t) >>=
-                                               (fun br_t' ->
-                                                  Lwt.return @@
-                                                    {
-                                                      Canvas.tl_t = tl_t';
-                                                      Canvas.tr_t = tr_t';
-                                                      Canvas.bl_t = bl_t';
-                                                      Canvas.br_t = br_t'
-                                                    }))))))
-                          >>= ((fun a0' -> Lwt.return @@ (Canvas.B a0')))
-                    | N a0 -> Lwt.return @@ (Canvas.N a0)) : Canvas.t Lwt.t)
+          let rec read_adt t (k:K.t) : Canvas.t Lwt.t =
+    find t k >>= fun aop ->
+    let a = from_just aop "to_adt" in
+    match a with
+      | N {r;g;b} -> Lwt.return @@ Canvas.N {r;g;b}
+      | B {tl_t;tr_t;bl_t;br_t} ->
+        (read_adt t tl_t >>= fun tl_t' ->
+         read_adt t tr_t >>= fun tr_t' ->
+         read_adt t bl_t >>= fun bl_t' ->
+         read_adt t br_t >>= fun br_t' ->
+         Lwt.return @@ Canvas.B {Canvas.tl_t=tl_t'; Canvas.tr_t=tr_t'; 
+                             Canvas.bl_t=bl_t'; Canvas.br_t=br_t'})
           end
         module type IRMIN_STORE_VALUE  =
           sig
