@@ -401,19 +401,31 @@ module ICanvas =
                                                      }))))))
                            >>= ((fun a0' -> Lwt.return @@ (B a0')))
                      | Canvas.N a0 -> Lwt.return @@ (N a0)) : t Lwt.t)
-            let to_adt (t:t) : Canvas.t Lwt.t =
-      AO_store.create () >>= fun ao_store ->
-      let aostore_read k =
-        AO_store.read_adt ao_store k in
-      match t with
-        | N {r;g;b} -> Lwt.return @@ Canvas.N {r;g;b}
-        | B {tl_t;tr_t;bl_t;br_t} ->
-          (aostore_read tl_t >>= fun tl_t' ->
-           aostore_read tr_t >>= fun tr_t' ->
-           aostore_read bl_t >>= fun bl_t' ->
-           aostore_read br_t >>= fun br_t' ->
-           Lwt.return @@ OM.B {OM.tl_t=tl_t'; OM.tr_t=tr_t'; 
-                               OM.bl_t=bl_t'; OM.br_t=br_t'})
+             let to_adt (t : t) =
+               ((AO_store.create ()) >>=
+                  (fun ao_store ->
+                     let aostore_read k = AO_store.read_adt ao_store k in
+                     match t with
+                     | B a0 ->
+                         (match a0 with
+                          | { tl_t; tr_t; bl_t; br_t;_} ->
+                              (aostore_read tl_t) >>=
+                                ((fun tl_t' ->
+                                    (aostore_read tr_t) >>=
+                                      (fun tr_t' ->
+                                         (aostore_read bl_t) >>=
+                                           (fun bl_t' ->
+                                              (aostore_read br_t) >>=
+                                                (fun br_t' ->
+                                                   Lwt.return @@
+                                                     {
+                                                       Canvas.tl_t = tl_t';
+                                                       Canvas.tr_t = tr_t';
+                                                       Canvas.bl_t = bl_t';
+                                                       Canvas.br_t = br_t'
+                                                     }))))))
+                           >>= ((fun a0' -> Lwt.return @@ (Canvas.B a0')))
+                     | N a0 -> Lwt.return @@ (Canvas.N a0)) : Canvas.t Lwt.t)
              let rec merge ~old:(old : t Irmin.Merge.promise)  (v1 : t)
                (v2 : t) =
                let open Irmin.Merge.Infix in
@@ -549,7 +561,7 @@ module ICanvas =
                    (fun (vop : BC_value.t option) ->
                       let v = from_just vop "get_latest_version" in
                       (BC_value.to_adt v) >>= (fun td -> Lwt.return (td, st))) : 
-              Canvas.t t)
+              Derived_Canvas.Canvas.t t)
             let pull_remote remote_uri (st : st) =
               let cinfo =
                 info
