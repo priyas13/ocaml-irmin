@@ -1,0 +1,1 @@
+ocamlfind ocamlopt canvas.ml icanvas_try.ml test_try.ml -o a -package jsonm,irmin-unix,lwt.unix -linkpkg -thread

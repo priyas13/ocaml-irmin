@@ -1,10 +1,10 @@
- module Make  = struct 
+ module Canvas  = struct 
 
 
 
 
   (* pixel is a record type which consist of parameters r, g and b where all of them are of char type *)
-  type pixel = {r:char; g:char; b:char}
+  type pixel = {r:char; g:char; b:char} [@@derive ezjsonm]
 
   (* default_pixel is a variable which represents the default pixel value *)
   (*let default_pixel = {r=Char.chr 255; g=Char.chr 255; b=Char.chr
@@ -17,14 +17,14 @@
   type node = {tl_t: t; tr_t: t; 
             bl_t: t; br_t: t} and 
   t = 
-    | N of pixel 
-    | B of node (* 4 quadrants *)
+    | B of node
+    | N of pixel  (* 4 quadrants *)[@@derive versioned]
+
+      (* loc represents the location in a canvas which is basically a record type with two entries *)
+  type loc = {x:int; y:int}[@@derive ezjsonm]
 
   (* canvas is a record type  -----*)
   type canvas = {max_x:int; max_y:int; t:t}
-
-  (* loc represents the location in a canvas which is basically a record type with two entries *)
-  type loc = {x:int; y:int}
 
   (* blank is a leaf node with default_pixel *)
   let blank = N default_pixel
@@ -213,7 +213,7 @@
       done
     done
 
-end 
+end[@@derive_versioned]
 
 (* main is a fucntion which calls several other functions like 
 c is the variable which defines the canvas which consist of paramter 128 and 128, these both are the maximum x and y coordinates 
