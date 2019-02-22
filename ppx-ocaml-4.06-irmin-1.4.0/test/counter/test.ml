@@ -1,3 +1,4 @@
+open Printf
 (* Utility functions *)
 (* U is a module with two functions *)
 module U = struct
@@ -30,7 +31,7 @@ let thread2_f : unit Vpst.t =
   (* Thread2 increments the counter once by 10  *)
   let c0' = M.inc c0 10 in
   (* Thread2 syncs with master. Observes no changes. *)
-  Vpst.sync_next_version ~v:c0' >>= fun c1 ->
+  Vpst.sync_next_version ~v:c0'.M.t >>= fun c1 ->
   (* Thread2 blocks for 0.5s *)
   Vpst.liftLwt @@ Lwt_unix.sleep 0.5 >>= fun () ->
   (* Thread2 decrements by 9. *)
@@ -40,7 +41,7 @@ let thread2_f : unit Vpst.t =
    * value (11) with the local value (1). The common 
    * ancestor is 10. The final value is 2.
    *)
-  Vpst.sync_next_version ~v:c1' >>= fun c2 ->
+  Vpst.sync_next_version ~v:c1'.M.t >>= fun c2 ->
   let _ = Printf.printf "thread2 (before exiting): %d\n" c2 in
   Vpst.return () in 
   
@@ -55,16 +56,16 @@ let thread1_f : unit Vpst.t =
   (* Syncs with master. Merges the current local value 
    * (5) with master's value (10). The common ancestor
    * is 0. The result 15. *)
-  Vpst.sync_next_version ~v:c0' >>= fun c1 ->
+  Vpst.sync_next_version ~v:c0'.M.t >>= fun c1 ->
   (* Thread1 blocks on some operation *)
   Vpst.liftLwt @@ Lwt_unix.sleep 0.1 >>= fun () ->
   (* Decrements by 4. *)
   let c1' = M.dec c1 4 in
   (* Syncs with the master again. Publishes 11. *)
-  Vpst.sync_next_version ~v:c1' >>= fun c2 ->
+  Vpst.sync_next_version ~v:c1'.M.t >>= fun c2 ->
   let _ = Printf.printf "thread1: %d\n" c2 in
   Vpst.liftLwt @@ Lwt_unix.sleep 1.1 >>= fun () ->
-  Vpst.sync_next_version ~v:c2 >>= fun c3->
+  Vpst.sync_next_version ~v:c2.M.t >>= fun c3->
   let _ = Printf.printf "thread1 (before exiting): %d\n" c3 in
   Vpst.return () in 
 
