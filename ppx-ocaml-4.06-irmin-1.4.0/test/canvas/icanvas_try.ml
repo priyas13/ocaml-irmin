@@ -97,7 +97,7 @@
               (S.add t v) >>=
                 (fun k -> ((!on_add) k v) >>= (fun _ -> Lwt.return k))
        let rec add_adt t (a : OM.t) =
-              ((add t) =<<
+              (add t) =<<
                  (match a with
                   | OM.B a0 ->
                       (match a0 with
@@ -118,7 +118,7 @@
                                                     br_t = br_t'
                                                   }))))))
                         >>= ((fun a0' -> Lwt.return @@ (B a0')))
-                  | OM.N {r;g;b} -> Lwt.return @@ (N {r;g;b})) : K.t Lwt.t)
+                  | OM.N a0 -> Lwt.return @@ (N a0)) 
 
   let rec read_adt t (k:K.t) : OM.t Lwt.t =
     find t k >>= fun aop ->
