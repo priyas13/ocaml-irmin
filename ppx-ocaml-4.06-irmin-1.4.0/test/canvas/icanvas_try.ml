@@ -96,7 +96,7 @@
             let add t v =
               (S.add t v) >>=
                 (fun k -> ((!on_add) k v) >>= (fun _ -> Lwt.return k))
-       let rec add_adt (a : OM.t) t  =
+       let rec add_adt t (a : OM.t) =
               (add t) =<<
                  (match a with
                   | OM.B a0 ->
