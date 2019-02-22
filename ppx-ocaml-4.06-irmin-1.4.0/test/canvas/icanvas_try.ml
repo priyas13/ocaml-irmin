@@ -96,54 +96,30 @@
             let add t v =
               (S.add t v) >>=
                 (fun k -> ((!on_add) k v) >>= (fun _ -> Lwt.return k))
-            let rec add_adt t (a : OM.t) =
-              ((add t) =<<
-                 (match a with
-                  | OM.B a0 ->
-                      (match a0 with
-                       | { tl_t; tr_t; bl_t; br_t;_} ->
-                           (add_adt t tl_t) >>=
-                             ((fun tl_t' ->
-                                 (add_adt t tr_t) >>=
-                                   (fun tr_t' ->
-                                      (add_adt t bl_t) >>=
-                                        (fun bl_t' ->
-                                           (add_adt t br_t) >>=
-                                             (fun br_t' ->
-                                                Lwt.return @@
-                                                  {
-                                                    tl_t = tl_t';
-                                                    tr_t = tr_t';
-                                                    bl_t = bl_t';
-                                                    br_t = br_t'
-                                                  }))))))
-                        >>= ((fun a0' -> Lwt.return @@ (B a0')))
-                  | OM.N a0 -> Lwt.return @@ (N a0)) : K.t Lwt.t)
-            let rec read_adt t (k : K.t) =
-              ((find t k) >>=
-                 (fun aop ->
-                    let a = from_just aop "to_adt" in
-                    match a with
-                    | B a0 ->
-                        (match a0 with
-                         | { tl_t; tr_t; bl_t; br_t;_} ->
-                             (read_adt t tl_t) >>=
-                               ((fun tl_t' ->
-                                   (read_adt t tr_t) >>=
-                                     (fun tr_t' ->
-                                        (read_adt t bl_t) >>=
-                                          (fun bl_t' ->
-                                             (read_adt t br_t) >>=
-                                               (fun br_t' ->
-                                                  Lwt.return @@
-                                                    {
-                                                      OM.tl_t = tl_t';
-                                                      OM.tr_t = tr_t';
-                                                      OM.bl_t = bl_t';
-                                                      OM.br_t = br_t'
-                                                    }))))))
-                          >>= ((fun a0' -> Lwt.return @@ (OM.B a0')))
-                    | N a0 -> Lwt.return @@ (OM.N a0)) : OM.t Lwt.t)
+            let rec add_adt t (a:OM.t) : K.t Lwt.t =
+    add t =<<
+      (match a with
+       | OM.N {r;g;b} -> Lwt.return @@ N {r;g;b}
+       | OM.B {tl_t;tr_t;bl_t;br_t} -> 
+         (add_adt t tl_t >>= fun tl_t' ->
+          add_adt t tr_t >>= fun tr_t' ->
+          add_adt t bl_t >>= fun bl_t' ->
+          add_adt t br_t >>= fun br_t' ->
+          Lwt.return @@ B {tl_t=tl_t'; tr_t=tr_t'; 
+                           bl_t=bl_t'; br_t=br_t'}))
+
+  let rec read_adt t (k:K.t) : OM.t Lwt.t =
+    find t k >>= fun aop ->
+    let a = from_just aop "to_adt" in
+    match a with
+      | N {r;g;b} -> Lwt.return @@ OM.N {r;g;b}
+      | B {tl_t;tr_t;bl_t;br_t} ->
+        (read_adt t tl_t >>= fun tl_t' ->
+         read_adt t tr_t >>= fun tr_t' ->
+         read_adt t bl_t >>= fun bl_t' ->
+         read_adt t br_t >>= fun br_t' ->
+         Lwt.return @@ OM.B {OM.tl_t=tl_t'; OM.tr_t=tr_t'; 
+                             OM.bl_t=bl_t'; OM.br_t=br_t'})
           end
         module type IRMIN_STORE_VALUE  =
           sig
@@ -154,56 +130,34 @@
         module BC_value =
           (struct
              include AO_value
-             let of_adt (a : OM.t) =
-               ((AO_store.create ()) >>=
-                  (fun ao_store ->
-                     let aostore_add adt = AO_store.add_adt ao_store adt in
-                     match a with
-                     | OM.B a0 ->
-                         (match a0 with
-                          | { tl_t; tr_t; bl_t; br_t;_} ->
-                              (aostore_add tl_t) >>=
-                                ((fun tl_t' ->
-                                    (aostore_add tr_t) >>=
-                                      (fun tr_t' ->
-                                         (aostore_add bl_t) >>=
-                                           (fun bl_t' ->
-                                              (aostore_add br_t) >>=
-                                                (fun br_t' ->
-                                                   Lwt.return @@
-                                                     {
-                                                       tl_t = tl_t';
-                                                       tr_t = tr_t';
-                                                       bl_t = bl_t';
-                                                       br_t = br_t'
-                                                     }))))))
-                           >>= ((fun a0' -> Lwt.return @@ (B a0')))
-                     | OM.N a0 -> Lwt.return @@ (N a0)) : t Lwt.t)
-             let to_adt (t : t) =
-               ((AO_store.create ()) >>=
-                  (fun ao_store ->
-                     let aostore_read k = AO_store.read_adt ao_store k in
-                     match t with
-                     | B a0 ->
-                         (match a0 with
-                          | { tl_t; tr_t; bl_t; br_t;_} ->
-                              (aostore_read tl_t) >>=
-                                ((fun tl_t' ->
-                                    (aostore_read tr_t) >>=
-                                      (fun tr_t' ->
-                                         (aostore_read bl_t) >>=
-                                           (fun bl_t' ->
-                                              (aostore_read br_t) >>=
-                                                (fun br_t' ->
-                                                   Lwt.return @@
-                                                     {
-                                                       OM.tl_t = tl_t';
-                                                       OM.tr_t = tr_t';
-                                                       OM.bl_t = bl_t';
-                                                       OM.br_t = br_t'
-                                                     }))))))
-                           >>= ((fun a0' -> Lwt.return @@ (OM.B a0')))
-                     | N a0 -> Lwt.return @@ (OM.N a0)) : OM.t Lwt.t)
+             let of_adt (a:OM.t) : t Lwt.t  =
+      AO_store.create () >>= fun ao_store -> 
+      let aostore_add adt =
+        AO_store.add_adt ao_store adt in
+      match a with
+       | OM.N {r;g;b} -> Lwt.return @@ N {r;g;b}
+       | OM.B {tl_t;tr_t;bl_t;br_t} -> 
+         (aostore_add tl_t >>= fun tl_t' ->
+          aostore_add tr_t >>= fun tr_t' ->
+          aostore_add bl_t >>= fun bl_t' ->
+          aostore_add br_t >>= fun br_t' ->
+          Lwt.return @@ B {tl_t=tl_t'; tr_t=tr_t'; 
+                           bl_t=bl_t'; br_t=br_t'})
+
+    let to_adt (t:t) : OM.t Lwt.t =
+      AO_store.create () >>= fun ao_store ->
+      let aostore_read k =
+        AO_store.read_adt ao_store k in
+      match t with
+        | N {r;g;b} -> Lwt.return @@ OM.N {r;g;b}
+        | B {tl_t;tr_t;bl_t;br_t} ->
+          (aostore_read tl_t >>= fun tl_t' ->
+           aostore_read tr_t >>= fun tr_t' ->
+           aostore_read bl_t >>= fun bl_t' ->
+           aostore_read br_t >>= fun br_t' ->
+           Lwt.return @@ OM.B {OM.tl_t=tl_t'; OM.tr_t=tr_t'; 
+                               OM.bl_t=bl_t'; OM.br_t=br_t'})
+          
              let rec merge ~old:(old : t Irmin.Merge.promise)  (v1 : t)
                (v2 : t) =
                let open Irmin.Merge.Infix in
