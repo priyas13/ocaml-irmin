@@ -1,17 +1,19 @@
-module Canvas =
+module Make =
   struct
     type pixel = {
       r: char ;
       g: char ;
       b: char }[@@derive ezjsonm]
+    let default_pixel =
+      { r = (Char.chr 1); g = (Char.chr 1); b = (Char.chr 1) }
     type node = {
       tl_t: t ;
       tr_t: t ;
       bl_t: t ;
       br_t: t }
     and t =
-      | B of node 
-      | N of pixel [@@derive versioned]
+      | N of pixel 
+      | B of node [@@derive versioned]
     type loc = {
       x: int ;
       y: int }[@@derive ezjsonm]
@@ -19,8 +21,6 @@ module Canvas =
       max_x: int ;
       max_y: int ;
       t: t }
-    let default_pixel =
-      { r = (Char.chr 255); g = (Char.chr 255); b = (Char.chr 255) }
     let blank = N default_pixel
     let plain px = N px
     let new_canvas max_x max_y = { max_x; max_y; t = blank }
@@ -219,11 +219,11 @@ module Canvas =
         done
       done
   end[@@derive_versioned ]
-module ICanvas =
+module IMake =
   struct
     open Lwt.Infix
     open Irmin_unix
-    module OM = Canvas
+    module OM = Make
     open OM
     module K = Irmin.Hash.SHA1
     module G = Git_unix.FS
@@ -241,8 +241,8 @@ module ICanvas =
           bl_t: K.t ;
           br_t: K.t }
         and madt =
-          | B of node 
           | N of pixel 
+          | B of node 
         module IrminConvert =
           struct
             let pixel =
@@ -264,26 +264,26 @@ module ICanvas =
                     |+ (field "bl_t" K.t (fun t -> t.bl_t)))
                    |+ (field "br_t" K.t (fun t -> t.br_t)))
                   |> sealr
-            and mkmadt node =
+            and mkmadt pixel =
               let open Irmin.Type in
                 (((variant "madt"
-                     (fun b ->
-                        fun n -> function | B a0 -> b a0 | N a0 -> n a0))
-                    |~ (case1 "B" node (fun x -> B x)))
-                   |~ (case1 "N" pixel (fun x -> N x)))
+                     (fun n ->
+                        fun b -> function | N a0 -> n a0 | B a0 -> b a0))
+                    |~ (case1 "N" pixel (fun x -> N x)))
+                   |~ (case1 "B" node (fun x -> B x)))
                   |> sealv
           end
         module IrminConvertTie =
           struct
             let () = ()
             let () = ()
-            and (node, madt) =
+            and (pixel, madt) =
               let open Irmin.Type in
                 mu2
-                  (fun node ->
+                  (fun pixel ->
                      fun madt ->
-                       ((IrminConvert.mknode madt),
-                         (IrminConvert.mkmadt node)))
+                       ((IrminConvert.mkpixel madt),
+                         (IrminConvert.mkmadt pixel)))
           end
         module AO_value =
           (struct
@@ -318,10 +318,11 @@ module ICanvas =
             let add t v =
               (S.add t v) >>=
                 (fun k -> ((!on_add) k v) >>= (fun _ -> Lwt.return k))
-            let rec add_adt t (a : Canvas.t) =
+            let rec add_adt t (a : Make.t) =
               ((add t) =<<
                  (match a with
-                  | Canvas.B a0 ->
+                  | Make.N a0 -> Lwt.return @@ (N a0)
+                  | Make.B a0 ->
                       (match a0 with
                        | { tl_t; tr_t; bl_t; br_t;_} ->
                            (add_adt t tl_t) >>=
@@ -339,13 +340,13 @@ module ICanvas =
                                                     bl_t = bl_t';
                                                     br_t = br_t'
                                                   }))))))
-                        >>= ((fun a0' -> Lwt.return @@ (B a0')))
-                  | Canvas.N a0 -> Lwt.return @@ (N a0)) : K.t Lwt.t)
+                        >>= ((fun a0' -> Lwt.return @@ (B a0')))) : K.t Lwt.t)
             let rec read_adt t (k : K.t) =
               ((find t k) >>=
                  (fun aop ->
                     let a = from_just aop "to_adt" in
                     match a with
+                    | N a0 -> Lwt.return @@ (Make.N a0)
                     | B a0 ->
                         (match a0 with
                          | { tl_t; tr_t; bl_t; br_t;_} ->
@@ -359,29 +360,30 @@ module ICanvas =
                                                (fun br_t' ->
                                                   Lwt.return @@
                                                     {
-                                                      Canvas.tl_t = tl_t';
-                                                      Canvas.tr_t = tr_t';
-                                                      Canvas.bl_t = bl_t';
-                                                      Canvas.br_t = br_t'
+                                                      Make.tl_t = tl_t';
+                                                      Make.tr_t = tr_t';
+                                                      Make.bl_t = bl_t';
+                                                      Make.br_t = br_t'
                                                     }))))))
-                          >>= ((fun a0' -> Lwt.return @@ (Canvas.B a0')))
-                    | N a0 -> Lwt.return @@ (Canvas.N a0)) : Canvas.t Lwt.t)
+                          >>= ((fun a0' -> Lwt.return @@ (Make.B a0')))) : 
+              Make.t Lwt.t)
           end
         module type IRMIN_STORE_VALUE  =
           sig
             include Irmin.Contents.S
-            val of_adt : Canvas.t -> t Lwt.t
-            val to_adt : t -> Canvas.t Lwt.t
+            val of_adt : Make.t -> t Lwt.t
+            val to_adt : t -> Make.t Lwt.t
           end
         module BC_value =
           (struct
              include AO_value
-             let of_adt (a : Canvas.t) =
+             let of_adt (a : Make.t) =
                ((AO_store.create ()) >>=
                   (fun ao_store ->
                      let aostore_add adt = AO_store.add_adt ao_store adt in
                      match a with
-                     | Canvas.B a0 ->
+                     | Make.N a0 -> Lwt.return @@ (N a0)
+                     | Make.B a0 ->
                          (match a0 with
                           | { tl_t; tr_t; bl_t; br_t;_} ->
                               (aostore_add tl_t) >>=
@@ -399,13 +401,14 @@ module ICanvas =
                                                        bl_t = bl_t';
                                                        br_t = br_t'
                                                      }))))))
-                           >>= ((fun a0' -> Lwt.return @@ (B a0')))
-                     | Canvas.N a0 -> Lwt.return @@ (N a0)) : t Lwt.t)
+                           >>= ((fun a0' -> Lwt.return @@ (B a0')))) : 
+               t Lwt.t)
              let to_adt (t : t) =
                ((AO_store.create ()) >>=
                   (fun ao_store ->
                      let aostore_read k = AO_store.read_adt ao_store k in
                      match t with
+                     | N a0 -> Lwt.return @@ (Make.N a0)
                      | B a0 ->
                          (match a0 with
                           | { tl_t; tr_t; bl_t; br_t;_} ->
@@ -419,13 +422,13 @@ module ICanvas =
                                                 (fun br_t' ->
                                                    Lwt.return @@
                                                      {
-                                                       Canvas.tl_t = tl_t';
-                                                       Canvas.tr_t = tr_t';
-                                                       Canvas.bl_t = bl_t';
-                                                       Canvas.br_t = br_t'
+                                                       Make.tl_t = tl_t';
+                                                       Make.tr_t = tr_t';
+                                                       Make.bl_t = bl_t';
+                                                       Make.br_t = br_t'
                                                      }))))))
-                           >>= ((fun a0' -> Lwt.return @@ (Canvas.B a0')))
-                     | N a0 -> Lwt.return @@ (Canvas.N a0)) : Canvas.t Lwt.t)
+                           >>= ((fun a0' -> Lwt.return @@ (Make.B a0')))) : 
+               Make.t Lwt.t)
              let rec merge ~old:(old : t Irmin.Merge.promise)  (v1 : t)
                (v2 : t) =
                let open Irmin.Merge.Infix in
@@ -475,26 +478,26 @@ module ICanvas =
                           let path_k = [fname_of_hash k] in
                           update t path_k v_k)) in
               (match v with
+               | N a0 -> Lwt.return()
                | B a0 ->
                    (match a0 with
                     | { tl_t; tr_t; bl_t; br_t;_} ->
                         List.fold_left
                           (fun m -> fun k -> m >>= (fun () -> link_to_tree k))
                           (Lwt.return()) [tl_t; tr_t; bl_t; br_t])
-                     >>= ((fun a0' -> Lwt.return()))
-               | N a0 -> Lwt.return()) >>=
-                (fun () -> Store.set t p v ~info:(info msg))
+                     >>= ((fun a0' -> Lwt.return())))
+                >>= (fun () -> Store.set t p v ~info:(info msg))
           end
         module Vpst :
           sig
             type 'a t
             val return : 'a -> 'a t
             val bind : 'a t -> ('a -> 'b t) -> 'b t
-            val with_init_version_do : Canvas.t -> 'a t -> 'a
+            val with_init_version_do : Make.t -> 'a t -> 'a
             val with_remote_version_do : string -> 'a t -> 'a
             val fork_version : 'a t -> unit t
-            val get_latest_version : unit -> Canvas.t t
-            val sync_next_version : ?v:Canvas.t -> Canvas.t t
+            val get_latest_version : unit -> Make.t t
+            val sync_next_version : ?v:Make.t -> Make.t t
             val liftLwt : 'a Lwt.t -> 'a t
             val pull_remote : string -> unit t
           end =
@@ -512,7 +515,7 @@ module ICanvas =
             let return (x : 'a) = (fun st -> Lwt.return (x, st) : 'a t)
             let bind (m1 : 'a t) (f : 'a -> 'b t) =
               (fun st -> (m1 st) >>= (fun (a, st') -> f a st') : 'b t)
-            let with_init_version_do (v : Canvas.t) (m : 'a t) =
+            let with_init_version_do (v : Make.t) (m : 'a t) =
               Lwt_main.run
                 ((BC_store.init ()) >>=
                    (fun repo ->
@@ -556,11 +559,12 @@ module ICanvas =
                  Lwt.return ((), { st with next_id = (st.next_id + 1) }) : 
               unit t)
             let get_latest_version () =
-              fun (st : st) ->
+              (fun (st : st) ->
                  (BC_store.read st.local path) >>=
                    (fun (vop : BC_value.t option) ->
                       let v = from_just vop "get_latest_version" in
-                      (BC_value.to_adt v) >>= (fun td -> Lwt.return (td, st))) 
+                      (BC_value.to_adt v) >>= (fun td -> Lwt.return (td, st))) : 
+              Make.t t)
             let pull_remote remote_uri (st : st) =
               let cinfo =
                 info
@@ -618,7 +622,7 @@ module ICanvas =
                            (BC_store.merge st.local ~into:(st.master)
                               ~info:cinfo)
                              >>= (fun _ -> get_latest_version () st))) : 
-              Canvas.t t)
+              Make.t t)
             let liftLwt (m : 'a Lwt.t) =
               (fun st -> m >>= (fun a -> Lwt.return (a, st)) : 'a t)
           end 
