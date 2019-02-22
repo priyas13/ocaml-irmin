@@ -118,7 +118,7 @@
                                                     br_t = br_t'
                                                   }))))))
                         >>= ((fun a0' -> Lwt.return @@ (B a0')))
-                  | OM.N a0 -> Lwt.return @@ (N {r;g;b})) 
+                  | OM.N a0 -> Lwt.return @@ (N a0)) 
 
   let rec read_adt t (k:K.t) : OM.t Lwt.t =
     find t k >>= fun aop ->
