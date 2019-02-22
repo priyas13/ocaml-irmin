@@ -99,7 +99,6 @@
        let rec add_adt t (a : OM.t) =
               (add t) =<<
                  (match a with
-                  | OM.N a0 -> Lwt.return @@ (N a0)
                   | OM.B a0 ->
                       (match a0 with
                        | { tl_t; tr_t; bl_t; br_t;_} ->
@@ -118,7 +117,8 @@
                                                     bl_t = bl_t';
                                                     br_t = br_t'
                                                   }))))))
-                        >>= ((fun a0' -> Lwt.return @@ (B a0'))))
+                        >>= ((fun a0' -> Lwt.return @@ (B a0')))
+                  | OM.N a0 -> Lwt.return @@ (N {r;g;b})) 
 
   let rec read_adt t (k:K.t) : OM.t Lwt.t =
     find t k >>= fun aop ->
