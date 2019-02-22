@@ -20,7 +20,7 @@ end
 let _ =
   U.print_header "Canvas"
 
-module MkConfig (Vars: sig val root: string end) : Canvas_derived.ICanvas.Config = struct
+module MkConfig (Vars: sig val root: string end) : Derived_canvas.ICanvas.Config = struct
   let root = Vars.root
   let shared = "/tmp/repos/shared.git"
 
@@ -31,8 +31,8 @@ module MkConfig (Vars: sig val root: string end) : Canvas_derived.ICanvas.Config
 end
 
 module CInit = MkConfig(struct let root = "/tmp/repos/canvas.git" end)
-module MInit = Canvas_derived.ICanvas.MakeVersioned(CInit)
-module M = Canvas_derived.Canvas
+module MInit = Derived_canvas.ICanvas.MakeVersioned(CInit)
+module M = Derived_canvas.Canvas
 module Vpst = MInit.Vpst
 
 let alice_uri = "git+ssh://opam@172.18.0.2/tmp/repos/canvas.git"
