@@ -1,4 +1,4 @@
-
+   module Icanvas = struct 
     open Lwt.Infix
     open Irmin_unix
     module OM = Canvas.Make
@@ -367,3 +367,4 @@
               (fun st -> m >>= (fun a -> Lwt.return (a, st)) : 'a t)
           end 
       end
+    end 
