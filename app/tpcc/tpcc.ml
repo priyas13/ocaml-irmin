@@ -32,6 +32,13 @@ module Warehouse = struct
                      w_name = x.w_name; 
                      w_state = x.w_state; 
                      w_ytd = 0} 
+
+  let print_warehouse w = print_string "{"; print_string "w_id"; print_string "="; 
+                                            print_char (w.w_id) ; print_string ";" ;
+                                            print_string "w_name"; print_string "=";
+                                            print_string (w.w_name) ; print_string ";";
+                                            print_string "w_ytd"; print_string "=";
+                                            print_int (w.w_ytd) ; print_string "}"
 end 
 
 (* District consists of fields representing the district id, district next order number *)
@@ -61,6 +68,17 @@ module District = struct
                      d_w_id = x.d_w_id;
                      d_ytd =  0;
                      d_next_o_id = 0}
+
+  let print_district d = print_string "{"; print_string "d_id"; print_string "="; 
+                                            print_char (d.d_id) ; print_string ";" ;
+                                            print_string "d_name"; print_string "=";
+                                            print_string (d.d_name) ; print_string ";";
+                                            print_string "d_w_id"; print_string "=";
+                                            print_char (d.d_w_id) ; print_string ";";
+                                            print_string "d_ytd"; print_string "=";
+                                            print_int (d.d_ytd) ; print_string ";";
+                                            print_string "d_next_o_id"; print_string "=";
+                                            print_int (d.d_next_o_id); print_string "}"
 end 
 
 (* Customer consist of fileds representing c_id representing customer id,
@@ -98,6 +116,22 @@ module Customer = struct
                       c_payment_ct = 0;
                       c_bal = 0;
                       c_delivery_ct = 0}
+
+  let print_customer c = print_string "{"; print_string "c_id"; print_string "="; 
+                                            print_char (c.c_id) ; print_string ";" ;
+                                            print_string "c_d_id"; print_string "=";
+                                            print_char (c.c_d_id) ; print_string ";";
+                                            print_string "c_w_id"; print_string "=";
+                                            print_char (c.c_w_id) ; print_string "=";
+                                            print_string "c_ytd" ; print_string "=";
+                                            print_int (c.c_ytd); print_string ";";
+                                            print_string "c_payment_ct"; print_string "=";
+                                            print_int (c.c_payment_ct); print_string "=";
+                                            print_string "c_bal"; print_string "=";
+                                            print_int (c.c_bal); print_string ";";
+                                            print_string "c_delivery_ct" ; print_string "=" ;
+                                            print_int (c.c_delivery_ct) ; print_string "}"
+ 
 end 
 
 (* Order consists of fields representing the order id, o_c_id which represents the customer id corresponding to that order, 
@@ -132,6 +166,17 @@ module Order = struct
                       o_d_id = x.o_d_id;
                       o_w_id = x.o_w_id;
                       o_ol_ct = 0}
+
+
+  let print_order o = print_string "{"; print_string "o_id"; print_string "="; 
+                                        print_int (o.o_id) ; print_string ";" ;
+                                        print_string "o_c_id"; print_string "=";
+                                        print_char (o.o_c_id); print_string ";";
+                                        print_string "o_w_id"; print_string "=";
+                                        print_char (o.o_w_id); print_string ";";
+                                        print_string "o_ol_ct"; print_string "=";
+                                        print_int (o.o_ol_ct); print_string "}"
+                                  
 end
 
 module Neworder = struct
@@ -155,6 +200,15 @@ module Neworder = struct
   let resolve x y = {no_o_id = 0; 
                      no_d_id = x.no_d_id; 
                      no_w_id = x.no_w_id}
+
+  
+  let print_neworder now = print_string "{"; print_string "no_o_id" ; print_string "=";
+                                             print_int (now.no_o_id) ; print_string ";";
+                                             print_string "no_d_id"; print_string "=";
+                                             print_char (now.no_d_id) ; print_string ";";
+                                             print_string "no_w_id"; print_string "=";
+                                             print_char (now.no_w_id); print_string "}"
+
 end 
 
 module Stock = struct
@@ -179,6 +233,18 @@ module Stock = struct
                      s_qty = 0; 
                      s_ytd = 0;
                      s_order_cnt = 0}
+
+  let print_stock s = print_string "{"; print_string "s_i_id" ; print_string "=";
+                                        print_char (s.s_i_id) ; print_string ";";
+                                        print_string "s_w_id"; print_string "=";
+                                        print_char (s.s_w_id) ; print_string ";";
+                                        print_string "s_qty"; print_string "=";
+                                        print_int (s.s_qty); print_string ";";
+                                        print_string "s_ytd"; print_string "=";
+                                        print_int (s.s_ytd); print_string ";";
+                                        print_string "s_order_cnt"; print_string "=";
+                                        print_int (s.s_order_cnt) ; print_string "}"
+
 end 
 
 module Item = struct
@@ -199,6 +265,14 @@ module Item = struct
  let resolve x y = {i_id = x.i_id;
                     i_name = x.i_name;
                     i_price = 0}
+
+ let print_item i = print_string "{"; print_string "i_id" ; print_string "=";
+                                      print_char (i.i_id); print_string ";";
+                                      print_string "i_name"; print_string "=";
+                                      print_string (i.i_name); print_string ";";
+                                      print_string "i_price"; print_string "=";
+                                      print_int (i.i_price); print_string "}"
+
 end 
 
 module History = struct 
@@ -234,6 +308,19 @@ module History = struct
                       h_d_id = x.h_d_id;
                       h_w_id = x.h_w_id; 
                       h_amt = 0}
+
+  let print_history h = print_string "{"; print_string "h_c_id"; print_string "="; 
+                                          print_char (h.h_c_id) ; print_string ";" ;
+                                          print_string "h_c_d_id"; print_string "=";
+                                          print_char (h.h_c_d_id) ; print_string ";";
+                                          print_string "h_c_w_id"; print_string "=";
+                                          print_char (h.h_c_w_id) ; print_string "=";
+                                          print_string "h_d_id" ; print_string "=";
+                                          print_char (h.h_d_id); print_string ";";
+                                          print_string "h_w_id"; print_string "=";
+                                          print_char (h.h_w_id); print_string "=";
+                                          print_string "h_amt"; print_string "=";
+                                          print_int (h.h_amt); print_string "}"
 end 
 
 module Orderline = struct 
@@ -274,6 +361,23 @@ module Orderline = struct
                      ol_i_id = x.ol_i_id; 
                      ol_supply_w_id = x.ol_supply_w_id;
                      ol_qty = 0}
+
+  let print_orderline ol = print_string "{"; print_string "ol_o_id"; print_string "="; 
+                                            print_int (ol.ol_o_id) ; print_string ";" ;
+                                            print_string "ol_d_id"; print_string "=";
+                                            print_char (ol.ol_d_id) ; print_string ";";
+                                            print_string "ol_w_id"; print_string "=";
+                                            print_char (ol.ol_w_id) ; print_string "=";
+                                            print_string "ol_num" ; print_string "=";
+                                            print_int (ol.ol_num); print_string ";";
+                                            print_string "ol_amt"; print_string "=";
+                                            print_int (ol.ol_amt); print_string "=";
+                                            print_string "ol_i_id"; print_string "=";
+                                            print_char (ol.ol_i_id); print_string ";";
+                                            print_string "ol_supply_w_id" ; print_string "=" ;
+                                            print_char (ol.ol_supply_w_id) ; print_string ";";
+                                            print_string "ol_qty"; print_string "=";
+                                            print_int (ol.ol_qty) ; print_string "}"
 end
 
 module Itemreq = struct 
@@ -299,6 +403,15 @@ let resolve x y = {ir_num = 0;
                    ir_i_id = x.ir_i_id;
                    ir_supply_w_id = x.ir_supply_w_id;
                    ir_qty = 0}
+
+ let print_itemreq ir = print_string "{"; print_string "ir_num"; print_string "="; 
+                                            print_int (ir.ir_num) ; print_string ";" ;
+                                            print_string "ir_i_id"; print_string "=";
+                                            print_char (ir.ir_i_id) ; print_string ";";
+                                            print_string "ir_supply_w_id"; print_string "=";
+                                            print_char (ir.ir_supply_w_id) ; print_string "=";
+                                            print_string "ir_qty" ; print_string "=";
+                                            print_int (ir.ir_qty); print_string "}"
 end 
 
 module Tpcc = struct 
@@ -620,4 +733,86 @@ let rec merge ~ancestor v1 v2 = {wt = OW.merge3 ancestor.wt v1.wt v2.wt;
                                  it = OI.merge3 ancestor.it v1.it v2.it;
                                  irt = OIR.merge3 ancestor.irt v1.irt v2.irt;
                                  ht = OH.merge3 ancestor.ht v1.ht v2.ht}
+
+let rec print_warehouse_table ws = match ws with 
+                                   | [] -> ()
+                                   | w :: wl -> Warehouse.print_warehouse w ; print_string ";"; print_newline(); print_warehouse_table wl
+
+let rec print_district_table ds = match ds with 
+                                   | [] -> ()
+                                   | d :: dl -> District.print_district d ; print_string ";"; print_newline(); print_district_table dl  
+
+let rec print_customer_table cs = match cs with 
+                                   | [] -> ()
+                                   | c :: cl -> Customer.print_customer c ; print_string ";"; print_newline(); print_customer_table cl 
+
+let rec print_order_table os = match os with 
+                                   | [] -> ()
+                                   | o :: ol -> Order.print_order o ; print_string ";"; print_newline(); print_order_table ol
+
+let rec print_neworder_table nos = match nos with 
+                                   | [] -> ()
+                                   | n :: nl -> Neworder.print_neworder n ; print_string ";"; print_newline(); print_neworder_table nl
+
+let rec print_stock_table ss = match ss with 
+                                   | [] -> ()
+                                   | s :: sl -> Stock.print_stock s ; print_string ";"; print_newline(); print_stock_table sl
+
+let rec print_item_table cs = match cs with 
+                                   | [] -> ()
+                                   | c :: cl -> Item.print_item c ; print_string ";"; print_newline(); print_item_table cl
+
+let rec print_orderline_table ols = match ols with 
+                                   | [] -> ()
+                                   | c :: cl -> Orderline.print_orderline c ; print_string ";"; print_newline(); print_orderline_table cl
+
+let rec print_itemreq_table cs = match cs with 
+                                   | [] -> ()
+                                   | c :: cl -> Itemreq.print_itemreq c ; print_string ";"; print_newline(); print_itemreq_table cl
+
+let rec print_history_table cs = match cs with 
+                                   | [] -> ()
+                                   | c :: cl -> History.print_history c ; print_string ";"; print_newline(); print_history_table cl
+
+let print tpcc tp = print_string "{"; print_string "wt" ; print_string "=";
+                                      print_warehouse_table tp.wt; print_string ";";
+                                      print_string "dt"; print_string "=";
+                                      print_district_table tp.dt; print_string ";";
+                                      print_string "ct"; print_string "=";
+                                      print_customer_table tp.ct; print_string ";";
+                                      print_string "ot"; print_string "=";
+                                      print_order_table tp.ot; print_string ";";
+                                      print_string "olt"; print_string "=";
+                                      print_orderline_table tp.olt; print_string ";";
+                                      print_string "ont"; print_string "=";
+                                      print_neworder_table tp.ont ; print_string ";";
+                                      print_string "st"; print_string "=";
+                                      print_stock_table tp.st; print_string ";";
+                                      print_string "it"; print_string "=";
+                                      print_item_table tp.it; print_string ";";
+                                      print_string "irt"; print_string "=";
+                                      print_itemreq_table tp.irt; print_string ";";
+                                      print_string "ht"; print_string "=";
+                                      print_history_table tp.ht; print_string "}"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
    end
