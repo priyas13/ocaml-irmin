@@ -29,6 +29,22 @@ let get_core = function
       (String.concat "." (Longident.flatten id))
   | _ -> failwith "error"
 
+let rec remove_last_element l = match l with 
+                            | [] -> failwith "No last element"
+                            | [x] -> []
+                            | [x;y] -> [x]
+                            | x :: xl -> x :: remove_last_element xl 
+
+let rec last_element l = match l with 
+                     | [] -> failwith "No last element"
+                     | [x] -> x 
+                     | [x;y] -> y
+                     | x :: xl -> last_element xl
+
+let get_core_from_core_option ctd = match ctd.ptype_manifest with 
+                             | Some x -> x
+                             | None -> failwith "No such core type"
+
 
 
 (* derive_to_json takes a list of type declarations as argument *)
@@ -126,7 +142,38 @@ let derive_to_irmin (tds:type_declaration list) =
              [rrr'; (Exp.ident ({txt = (Lident "sealr"); loc = !Ast_helper.default_loc}))])) in 
         if (List.exists (fun x -> c_ty x) l) then Vb.mk (pvar @@ ("mk" ^ mk_to_irmin_name ctd)) ty else 
         Vb.mk (pvar @@ (mk_to_irmin_name ctd)) ty
-    | Ptype_abstract ->  {pvb_pat = punit(); pvb_expr= unit(); pvb_attributes = []; pvb_loc = !Ast_helper.default_loc}
+    | Ptype_abstract ->  let exp_ty ctd = (match ctd.ptype_manifest with 
+                           | Some x -> (match x.ptyp_desc with 
+                                        | Ptyp_tuple l -> (match l with 
+                                                         | [] -> failwith "Nothing left"
+                                                         | a :: al -> let mapper a = (match a.ptyp_desc with 
+                                                                      | Ptyp_constr ({txt = Lident "t"}, []) -> (constr ("K.t") [])
+                                                                      | Ptyp_constr ({txt = Ldot (Lident "Atom", "t")}, []) -> (constr ("Atom.t") [])
+                                                                     
+                                                                      | Ptyp_constr ({txt = Lident "elt"}, []) -> (constr ("Atom.t") [])
+                                                                      | Ptyp_constr ({txt = t}, x) -> (constr ("K.t") [])
+                                                                      | _ -> assert false) in 
+                                                                       (List.fold_right (fun x y -> (app (Exp.ident ({txt = (Lident "pair"); loc = !Ast_helper.default_loc})) [x; y])) 
+                                                                         (remove_last_element (List.map (fun x -> mapper x) l)) (last_element ((List.map (fun x -> mapper x) l))))) 
+                                        | Ptyp_constr ({txt = Ldot (Lident "Atom", "t")}, []) -> (constr ("Atom.t") [])
+                                        | Ptyp_constr ({txt = Lident "t"}, []) -> (constr ("K.t") [])
+                                        | Ptyp_constr ({txt = t}, x) -> (constr ("K.t") [])
+                                        | _ -> assert false)
+                         | None -> assert false) in 
+                           let rec c_ty x = match x.ptyp_desc with 
+                                        | Ptyp_constr ({txt = Longident.Ldot (n, "t")}, x) -> true 
+                                        | Ptyp_constr ({txt = t}, x) -> true
+                                        | Ptyp_tuple l -> (List.exists (fun x -> c_ty x) l)
+                                        | _ -> false in 
+                           if (List.exists (fun x -> c_ty x) [(get_core_from_core_option ctd)]) then
+                           Vb.mk (pvar @@ ("mk" ^ mk_to_irmin_name ctd)) (lam (pvar "t") (Exp.open_ Fresh {txt = Ldot (Lident "Irmin", "Type"); loc = !Ast_helper.default_loc} (exp_ty ctd))) else
+                           Vb.mk (pvar @@ (mk_to_irmin_name ctd)) (Exp.open_ Fresh {txt = Ldot (Lident "Irmin", "Type"); loc = !Ast_helper.default_loc} (exp_ty ctd))
+                           (*{pvb_pat = pvar (mk_to_irmin_name ctd) ; 
+        pvb_expr = (Exp.open_ Fresh {txt = Ldot (Lident "Irmin", "Type");loc = !Ast_helper.default_loc}
+                                          (app (Exp.ident ({txt = (Lident "list"); loc = !Ast_helper.default_loc}))
+                                               [(Exp.ident ({txt = Ldot (Lident "OM", "atom"); loc = !Ast_helper.default_loc}))]));
+        pvb_attributes = [];
+        pvb_loc = !Ast_helper.default_loc}*)
     | Ptype_open -> assert false) in
   Str.value Nonrecursive (List.map kind_mapper tds)
 
@@ -175,17 +222,10 @@ let derive_to_irmin_tie (tds:type_declaration list) =
            if tys = [] then {pvb_pat = punit(); pvb_expr= unit(); pvb_attributes = []; pvb_loc = !Ast_helper.default_loc}
            else Vb.mk (ptuple [pvar (get_core (List.hd tys)); pvar (mk_to_irmin_name ctd)]) prhs  
     | Ptype_record l -> {pvb_pat = punit(); pvb_expr= unit(); pvb_attributes = []; pvb_loc = !Ast_helper.default_loc}
-    | Ptype_abstract ->  (*(match ctd.ptype_manifest with 
-      | Some {ptyp_desc = Ptyp_constr ({txt = Lident "list"}, [{ptyp_desc = Ptyp_constr ({txt = Lident "atom"}, [])}])} ->*)
-       {pvb_pat = pvar (mk_to_irmin_name ctd) ; 
-        pvb_expr = (Exp.open_ Fresh {txt = Ldot (Lident "Irmin", "Type");loc = !Ast_helper.default_loc}
-                                          (app (Exp.ident ({txt = (Lident "list"); loc = !Ast_helper.default_loc}))
-                                               [(Exp.ident ({txt = Ldot (Lident "Atom", "t"); loc = !Ast_helper.default_loc}))]));
-        pvb_attributes = [];
-        pvb_loc = !Ast_helper.default_loc}
-
-      (*| _ -> assert false)*)
-    
+    | Ptype_abstract ->  {pvb_pat = punit(); pvb_expr= unit(); pvb_attributes = []; pvb_loc = !Ast_helper.default_loc}
+                         
     | Ptype_open -> assert false) in
-  Str.value Nonrecursive (List.map kind_mapper tds)
+      Str.value Nonrecursive (List.map kind_mapper tds)
+    
+ 
 
