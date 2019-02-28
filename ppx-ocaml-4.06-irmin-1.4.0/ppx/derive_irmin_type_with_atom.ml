@@ -47,8 +47,6 @@ let get_core_from_core_option ctd = match ctd.ptype_manifest with
 
 
 
-(* derive_to_json takes a list of type declarations as argument *)
-(* it is a function for producing the AST of the json value of the type *)
 (* t is any type *)
 let derive_to_irmin (tds:type_declaration list) =
   (* t is here a type declaration *)
@@ -256,15 +254,11 @@ let derive_to_irmin (tds:type_declaration list) =
     | Ptype_open -> assert false) in
   Str.value Nonrecursive (List.map kind_mapper tds)
 
-  (* derive_to_json takes a list of type declarations as argument *)
-(* it is a function for producing the AST of the json value of the type *)
 (* t is any type *)
 let derive_to_irmin_tie (tds:type_declaration list) =
   (* t is here a type declaration *)
   let mk_to_irmin_name t = 
     (* ptype_name field of t is the type name *)
-    (* ^ concatenates the name with _to_json *)
-    (* Because we are converting the type to json, hence we concatenate the type name of the declaration with to_json. The function name is like t_to_json *)
     (t.ptype_name.txt) in
   let rec kind_mapper ctd =
   (* here tt is the type expression which contains ptyp_desc, ptyp_loc and ptyp_attributes *)
