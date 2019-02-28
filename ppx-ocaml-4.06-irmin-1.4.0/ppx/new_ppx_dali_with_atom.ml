@@ -959,9 +959,9 @@ let dali_to_adt tds td mn =
                       [{ptyp_desc = Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, [])}]) -> 
                       app (evar "@@") [evar "Lwt.return" ; (evar "t")]  
                     | Ptyp_constr ({txt = Longident.Lident "char"}, []) -> 
-                       app (evar "@@") [evar "Lwt.return" ; (evar "a")]  
+                       app (evar "@@") [evar "Lwt.return" ; (evar "t")]  
                     | Ptyp_constr ({txt = Longident.Lident "string"}, []) -> 
-                       app (evar "@@") [evar "Lwt.return" ; (evar "a")]                 
+                       app (evar "@@") [evar "Lwt.return" ; (evar "t")]                 
                       | _ -> assert false)
          | None -> assert false) 
     | Ptype_open -> assert false in
