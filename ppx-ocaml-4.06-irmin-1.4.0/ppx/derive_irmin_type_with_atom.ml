@@ -54,8 +54,6 @@ let derive_to_irmin (tds:type_declaration list) =
   (* t is here a type declaration *)
   let mk_to_irmin_name t = 
     (* ptype_name field of t is the type name *)
-    (* ^ concatenates the name with _to_json *)
-    (* Because we are converting the type to json, hence we concatenate the type name of the declaration with to_json. The function name is like t_to_json *)
     (t.ptype_name.txt) in
   let rec kind_mapper ctd =
   (* here tt is the type expression which contains ptyp_desc, ptyp_loc and ptyp_attributes *)
