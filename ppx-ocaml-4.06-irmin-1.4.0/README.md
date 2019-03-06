@@ -72,4 +72,4 @@ Irmin verison creates some issue when we define it in the above form.
 
 (7) For using Atom.t please use it directly instead of naming it as elt or atom or anything else.
     
-# I will keep updating the ppx so please use the most recent version on github.
+## I will keep updating the ppx so please use the most recent version on (my github)(https://github.com/priyas13/ocaml-irmin/tree/master/ppx-ocaml-4.06-irmin-1.4.0).
