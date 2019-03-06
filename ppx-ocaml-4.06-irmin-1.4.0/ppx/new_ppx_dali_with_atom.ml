@@ -10,6 +10,18 @@ let raise_errorf ?sub ?if_highlight ?loc message =
       raise (Location.Error err))
 
 let mkaststr str = {txt=str; loc = !Ast_helper.default_loc}
+
+let rec remove_last_element l = match l with 
+                            | [] -> failwith "No last element"
+                            | [x] -> []
+                            | [x;y] -> [x]
+                            | x :: xl -> x :: remove_last_element xl 
+
+let rec last_element l = match l with 
+                     | [] -> failwith "No last element"
+                     | [x] -> x 
+                     | [x;y] -> y
+                     | x :: xl -> last_element xl
  
 (* To map:
    [%%dali_imodstr_rename]
@@ -261,7 +273,42 @@ let dali_madt_typedef tds td mn =
           | "Atom.t" -> "Atom.t"
           | "atom" -> "OM.atom"
           | x -> x) in default_mapper.typ mapper @@ constr (Ast_convenience.lid (prefix)) []
-        | x -> default_mapper.typ mapper x)} in 
+        | {ptyp_desc = Ptyp_tuple l} -> 
+          (match l with 
+                       | [] -> failwith "Nothing left"
+                       | a :: al -> 
+                         let mapper' a = 
+                           match a.ptyp_desc with 
+                              | Ptyp_constr ({txt = Longident.Lident "t"}, []) -> constr (Ast_convenience.lid ("K.t")) []
+                              | Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, []) -> 
+                                (constr (Ast_convenience.lid ("Atom.t")) [])
+                              | Ptyp_constr ({txt = Longident.Lident "elt"}, []) -> (constr (Ast_convenience.lid ("Atom.t")) [])
+                              | Ptyp_constr ({txt = Longident.Lident n}, x) -> 
+                                if n = td.ptype_name.txt 
+                                 then (constr (Ast_convenience.lid ("K.t")) []) 
+                                 else (match n with 
+                                      | "int64" -> (constr (Ast_convenience.lid "int64") [])
+                                      | "int32" -> (constr (Ast_convenience.lid "int32") [])
+                                      | "char" -> (constr (Ast_convenience.lid "char") [])
+                                      | "string" -> (constr (Ast_convenience.lid "string") [])
+                                      | "atom" -> (constr (Ast_convenience.lid "OM.atom") [])
+                                      | _ -> assert false)
+                              | Ptyp_constr ({txt = n}, x) -> 
+                                let tn = String.concat "." (Longident.flatten n) in
+                                   let prefix = match tn with
+                                      | "int" -> "int64"
+                                      | "int32" -> "int32"
+                                      | "string" -> "string"
+                                      | "char" -> "char"
+                                      | "Atom.t" -> "Atom.t"
+                                      | "atom" -> "OM.atom"
+                                      | x -> x in (constr (Ast_convenience.lid prefix) [])
+                              | _ -> assert false in 
+                               List.fold_right (fun x y -> (Typ.tuple) [x;y]) 
+                               (remove_last_element (List.map (fun x -> mapper' x) l)) 
+                                 (last_element ((List.map (fun x -> mapper' x) l)))) 
+
+        | x -> assert false)} in 
   let type_dec_mapper = 
     {   
       default_mapper with
@@ -274,7 +321,7 @@ let dali_madt_typedef tds td mn =
           | x -> default_mapper.type_declaration main_td_mapper x);
     } in 
   let madts = List.map (type_dec_mapper.type_declaration type_dec_mapper) (tds) in 
-  ((Ast_helper.Str.type_ Recursive madts), madts) 
+  ((Ast_helper.Str.type_ Recursive madts), madts)
 
 
 
@@ -397,7 +444,11 @@ let dali_update_adt tds td mn =
                  match a.ptyp_desc with 
                     | Ptyp_constr ({txt = Longident.Lident n}, _) ->
                         if n = td.ptype_name.txt then
-                        (ptuple @@ (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) l)) else 
+                        let a' = (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) l) in 
+                        let t = List.fold_right (fun x y -> (Pat.tuple) [x;y]) 
+                               (remove_last_element a') 
+                                 (last_element a') in 
+                  t else 
                         (pvar "x")                                                                        
                     | _ -> aux (i+1) al in 
                     aux 0 l in 
@@ -470,7 +521,6 @@ let dali_update_adt tds td mn =
   let open Ast_helper in
   let open Ast_convenience in
   let mkp x = x ^ "'" in
-  let mn = String.concat "." (Longident.flatten mn) in
   (* here tn is a type name and l is the list of type declaration. *)
   let rec find_some_type l tn =
     match l with
@@ -485,7 +535,7 @@ let dali_update_adt tds td mn =
       let mkparg x = mkp @@ mkarg x in
       (* c is a constructor declaration present in the type declaration l *)
       let pat_mapper c =
-        let name = mn ^ "." ^ c.pcd_name.txt in
+        let name = "OM" ^ "." ^ c.pcd_name.txt in
         let c' = c.pcd_args in 
         let plhs = pconstr name (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) (get_core_list c'))  in
         let prhs =
@@ -559,7 +609,7 @@ let dali_update_adt tds td mn =
                  match a.ptyp_desc with 
                     | Ptyp_constr ({txt = Longident.Lident n}, _) ->
                         if n = td.ptype_name.txt then
-                        (ptuple @@ (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) l)) else 
+                        ptuple @@ (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) l) else 
                         (pvar "x")                                                                        
                     | _ -> aux (i+1) al in 
                     aux 0 l in 
@@ -569,7 +619,10 @@ let dali_update_adt tds td mn =
                 match l with 
                  | [] -> 
                   let a' = List.map (fun x -> evar x) (List.rev ls) in 
-                  app (evar "@@") [evar "Lwt.return"; (tuple a')]
+                  let t = List.fold_right (fun x y -> (Exp.tuple) [x;y]) 
+                               (remove_last_element a') 
+                                 (last_element a') in 
+                  app (evar "@@") [evar "Lwt.return"; t]
                  | a :: al ->  
                  let mkarg x = "b" ^ string_of_int x in 
                  let mkparg x = mkp @@ mkarg x in 
@@ -636,7 +689,6 @@ let dali_read_adt tds td mn =
   let open Ast_helper in
   let open Ast_convenience in
   let mkp x = x ^ "'" in
-  let mn = String.concat "." (Longident.flatten mn) in
   let rec find_some_type l tn =
     match l with
     | [] -> None
@@ -649,7 +701,7 @@ let dali_read_adt tds td mn =
       let mkarg x = "a" ^ string_of_int x in
       let mkparg x = mkp @@ mkarg x in
       let pat_mapper c =
-        let name = mn ^ "." ^ c.pcd_name.txt in
+        let name = "OM" ^ "." ^ c.pcd_name.txt in
         let plhs = pconstr c.pcd_name.txt (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) (get_core_list (c.pcd_args))) in
         let prhs =
           let rec aux i args allargns =
@@ -680,7 +732,7 @@ let dali_read_adt tds td mn =
         let rec aux args allargns =
           match args with
           | [] ->
-            let a = List.map (fun e -> mn ^ "."^ fst e, evar @@ snd e) @@ List.rev allargns in
+            let a = List.map (fun e -> "OM" ^ "."^ fst e, evar @@ snd e) @@ List.rev allargns in
             app (evar "@@") [evar "Lwt.return"; record a]
           | x :: y ->
             let argn = snd (fst x) in  
@@ -720,7 +772,11 @@ let dali_read_adt tds td mn =
                  match a.ptyp_desc with 
                     | Ptyp_constr ({txt = Longident.Lident n}, _) ->
                         if n = td.ptype_name.txt then
-                        (ptuple @@ (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) l)) else 
+                        let a' = (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) l) in 
+                        let t = List.fold_right (fun x y -> (Pat.tuple) [x;y]) 
+                               (remove_last_element a') 
+                                 (last_element a') in 
+                        t else 
                         (pvar "x")                                                                        
                     | _ -> aux (i+1) al in 
                     aux 0 l in 
@@ -795,7 +851,6 @@ let dali_of_adt tds td mn =
   let open Ast_helper in
   let open Ast_convenience in
   let mkp x = x ^ "'" in
-  let mn = String.concat "." (Longident.flatten mn) in
   let rec find_some_type l tn =
     match l with
     | [] -> None
@@ -809,7 +864,7 @@ let dali_of_adt tds td mn =
       let mkparg x = mkp @@ mkarg x in
       (* c is a constructor declaration present in the type declaration l *)
       let pat_mapper c =
-        let name = mn ^ "." ^ c.pcd_name.txt in
+        let name = "OM" ^ "." ^ c.pcd_name.txt in
         let c' = c.pcd_args in 
         let plhs = pconstr name (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) (get_core_list c'))  in
         let prhs =
@@ -889,7 +944,10 @@ let dali_of_adt tds td mn =
                 match l with 
                  | [] -> 
                   let a' = List.map (fun x -> evar x) (List.rev ls) in 
-                  app (evar "@@") [evar "Lwt.return"; (tuple a')]
+                   let t = List.fold_right (fun x y -> (Exp.tuple) [x;y]) 
+                               (remove_last_element a') 
+                                 (last_element a') in 
+                  app (evar "@@") [evar "Lwt.return"; t]
                  | a :: al -> 
                  let mkarg x = "b" ^ string_of_int x in 
                  let mkparg x = mkp @@ mkarg x in 
@@ -966,7 +1024,7 @@ let dali_to_adt tds td mn =
       let mkarg x = "a" ^ string_of_int x in
       let mkparg x = mkp @@ mkarg x in
       let pat_mapper c =
-        let name = mn ^ "." ^ c.pcd_name.txt in
+        let name = "OM" ^ "." ^ c.pcd_name.txt in
         let plhs = pconstr c.pcd_name.txt (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) (get_core_list (c.pcd_args))) in
         let prhs =
           let rec aux i args allargns =
@@ -1036,7 +1094,11 @@ let dali_to_adt tds td mn =
                  match a.ptyp_desc with 
                     | Ptyp_constr ({txt = Longident.Lident n}, _) ->
                         if n = td.ptype_name.txt then
-                        (ptuple @@ (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) l)) else 
+                        let a' = (List.mapi (fun i e -> Pat.var @@ mkaststr (mkarg i)) l) in 
+                        let t = List.fold_right (fun x y -> (Pat.tuple) [x;y]) 
+                               (remove_last_element a') 
+                                 (last_element a') in 
+                        t else 
                         (pvar "x")                                                                        
                     | _ -> aux (i+1) al in 
                     aux 0 l in 
