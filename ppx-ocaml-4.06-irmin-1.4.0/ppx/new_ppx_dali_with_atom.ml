@@ -239,6 +239,7 @@ let dali_madt_typedef tds td mn =
     typ = (fun mapper t ->
         (* Here t is the core type : type expression *)
         match t with
+
         | { ptyp_desc = Ptyp_var x } -> 
           default_mapper.typ mapper @@ constr (Ast_convenience.lid ("String.uppercase_ascii x" ^ ".t")) []
           (* This is the case where the type is suppose t *)
@@ -253,6 +254,8 @@ let dali_madt_typedef tds td mn =
         let tn = String.concat "." (Longident.flatten n) in
         let prefix = (match tn with
           | "int" -> "int64"
+          | "int32" -> "int32"
+          | "int64" -> "int64"
           | "string" -> "string"
           | "char" -> "char"
           | "Atom.t" -> "Atom.t"
@@ -436,11 +439,25 @@ let dali_update_adt tds td mn =
           
                     Exp.match_ (evar ak) [(Exp.case plhs prhs)]     
                     | Ptyp_constr ({txt = Longident.Lident "int"}, []) -> evar "Lwt.return ()" 
+                    | Ptyp_constr ({txt = Longident.Lident "int32"}, []) -> evar "Lwt.return ()"
+                    | Ptyp_constr ({txt = Longident.Lident "int64"}, []) -> evar "Lwt.return ()"
                     | Ptyp_constr ({txt = Longident.Lident "char"}, []) -> evar "Lwt.return ()"
                     | Ptyp_constr ({txt = Longident.Lident "string"}, []) -> evar "Lwt.return ()"    
                     | Ptyp_constr ({txt = Longident.Lident "list"},
-                      [{ptyp_desc = Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, [])}]) -> evar "Lwt.return ()"          
-                      | _ -> assert false)
+                      [{ptyp_desc = Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, [])}]) -> evar "Lwt.return ()" 
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                      [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "char")}, [])}]) -> evar "Lwt.return ()" 
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                      [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "string")}, [])}]) -> evar "Lwt.return ()"
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                      [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int64")}, [])}]) -> evar "Lwt.return ()"
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                      [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int32")}, [])}]) -> evar "Lwt.return ()"  
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                      [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int")}, [])}]) -> evar "Lwt.return ()"  
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                      [{ptyp_desc = Ptyp_tuple l}]) -> evar "Lwt.return ()"  
+                    | x -> evar "Lwt.return ()")
          | None -> assert false) 
     | Ptype_open -> assert false in
   kind_mapper td "v"
@@ -526,7 +543,14 @@ let dali_update_adt tds td mn =
         | Some x -> 
           (match x.ptyp_desc with 
           | Ptyp_tuple l ->
-             let plhs = 
+             let rec check_core_type l = match l with 
+              | [] -> true
+              | x :: xl -> (match x.ptyp_desc with 
+                             | Ptyp_constr ({txt = Longident.Lident n}, _) ->
+                               if n = td.ptype_name.txt then true 
+                               else check_core_type xl
+                             | _ -> false) in 
+             if (check_core_type l) then let plhs = 
               let rec aux i l =        
                match l with 
                | [] -> (pvar "x")
@@ -546,7 +570,7 @@ let dali_update_adt tds td mn =
                  | [] -> 
                   let a' = List.map (fun x -> evar x) (List.rev ls) in 
                   app (evar "@@") [evar "Lwt.return"; (tuple a')]
-                 | a :: al -> 
+                 | a :: al ->  
                  let mkarg x = "b" ^ string_of_int x in 
                  let mkparg x = mkp @@ mkarg x in 
                  let argn = mkarg i in 
@@ -567,17 +591,40 @@ let dali_update_adt tds td mn =
                     | Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, []) -> aux (i+1) al (argn :: ls)                                                                    
                     | _ -> aux (i+1) al (argn :: ls) in 
                     aux 0 l [] in 
-          
-                    Exp.match_ (evar ak) [(Exp.case plhs prhs)]  
-                    | Ptyp_constr ({txt = Longident.Lident "int"}, []) -> app (evar "@@") [evar "Lwt.return" ; constr "Int64.of_int" [(evar "a")]]   
+                    Exp.match_ (evar ak) [(Exp.case plhs prhs)]
+                    else  app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
+                    | Ptyp_constr ({txt = Longident.Lident "int"}, []) -> 
+                      app (evar "@@") [evar "Lwt.return" ; constr "Int64.of_int" [(evar "a")]] 
+                    | Ptyp_constr ({txt = Longident.Lident "int32"}, []) -> 
+                       app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
+                    | Ptyp_constr ({txt = Longident.Lident "int64"}, []) -> 
+                       app (evar "@@") [evar "Lwt.return" ; (evar "a")]  
+                    | Ptyp_constr ({txt = Longident.Lident "string"}, []) -> 
+                       app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
+                    | Ptyp_constr ({txt = Longident.Lident "char"}, []) -> 
+                       app (evar "@@") [evar "Lwt.return" ; (evar "a")]    
                     | Ptyp_constr ({txt = Longident.Lident "list"},
                       [{ptyp_desc = Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, [])}]) -> 
                       app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
-                    | Ptyp_constr ({txt = Longident.Lident "char"}, []) -> 
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                       [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "char")}, [])}]) -> 
+                       app (evar "@@") [evar "Lwt.return" ; (evar "a")]
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                       [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "string")}, [])}]) -> 
+                       app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                       [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int32")}, [])}]) -> 
                        app (evar "@@") [evar "Lwt.return" ; (evar "a")]  
-                    | Ptyp_constr ({txt = Longident.Lident "string"}, []) -> 
-                       app (evar "@@") [evar "Lwt.return" ; (evar "a")]            
-                      | _ -> assert false)
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                       [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int64")}, [])}]) -> 
+                       app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                       [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int")}, [])}]) -> 
+                       app (evar "@@") [evar "Lwt.return" ; (evar "a")]
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                       [{ptyp_desc = Ptyp_tuple l}]) -> 
+                       app (evar "@@") [evar "Lwt.return" ; (evar "a")]           
+                    | x -> app (evar "@@") [evar "Lwt.return" ; (evar "a")] )
          | None -> assert false) 
     | Ptype_open -> assert false in
   kind_mapper td "a"
@@ -656,6 +703,14 @@ let dali_read_adt tds td mn =
         | Some x -> 
           (match x.ptyp_desc with 
           | Ptyp_tuple l ->
+             let rec check_core_type l = match l with 
+              | [] -> true
+              | x :: xl -> (match x.ptyp_desc with 
+                             | Ptyp_constr ({txt = Longident.Lident n}, _) ->
+                               if n = td.ptype_name.txt then true 
+                               else check_core_type xl
+                             | _ -> false) in 
+             if (check_core_type l) then 
              let plhs = 
               let rec aux i l =        
                match l with 
@@ -696,17 +751,40 @@ let dali_read_adt tds td mn =
                     | Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, []) -> aux (i+1) al (argn :: ls)                                                                    
                     | _ -> aux (i+1) al (argn :: ls) in 
                     aux 0 l [] in 
-          
                     Exp.match_ (evar ak) [(Exp.case plhs prhs)]  
-                    | Ptyp_constr ({txt = Longident.Lident "int"}, []) -> app (evar "@@") [evar "Lwt.return" ; constr "Int64.of_int" [(evar "a")]] 
+                    else app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
+                    | Ptyp_constr ({txt = Longident.Lident "int"}, []) -> 
+                      app (evar "@@") [evar "Lwt.return" ; constr "Int64.of_int" [(evar "a")]] 
+                    | Ptyp_constr ({txt = Longident.Lident "int32"}, []) -> 
+                      app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
+                    | Ptyp_constr ({txt = Longident.Lident "int64"}, []) -> 
+                      app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
                     | Ptyp_constr ({txt = Longident.Lident "list"},
                       [{ptyp_desc = Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, [])}]) -> 
-                      app (evar "@@") [evar "Lwt.return" ; (evar "a")]  
+                      app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                       [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "char")}, [])}]) -> 
+                       app (evar "@@") [evar "Lwt.return" ; (evar "a")]
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                       [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "string")}, [])}]) -> 
+                       app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                       [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int32")}, [])}]) -> 
+                       app (evar "@@") [evar "Lwt.return" ; (evar "a")]  
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                       [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int64")}, [])}]) -> 
+                       app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                       [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int")}, [])}]) -> 
+                       app (evar "@@") [evar "Lwt.return" ; (evar "a")]
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                       [{ptyp_desc = Ptyp_tuple l}]) -> 
+                       app (evar "@@") [evar "Lwt.return" ; (evar "a")]  
                     | Ptyp_constr ({txt = Longident.Lident "char"}, []) -> 
                        app (evar "@@") [evar "Lwt.return" ; (evar "a")]  
                     | Ptyp_constr ({txt = Longident.Lident "string"}, []) -> 
                        app (evar "@@") [evar "Lwt.return" ; (evar "a")]              
-                    | _ -> assert false)
+                    | x -> app (evar "@@") [evar "Lwt.return" ; (evar "a")])
          | None -> assert false) 
     | Ptype_open -> assert false in
   kind_mapper td "a"
@@ -784,7 +862,14 @@ let dali_of_adt tds td mn =
     | Ptype_abstract ->  (match ctd.ptype_manifest with 
         | Some x -> 
           (match x.ptyp_desc with 
-          | Ptyp_tuple l ->
+          | Ptyp_tuple l -> let rec check_core_type l = match l with 
+              | [] -> true
+              | x :: xl -> (match x.ptyp_desc with 
+                             | Ptyp_constr ({txt = Longident.Lident n}, _) ->
+                               if n = td.ptype_name.txt then true 
+                               else check_core_type xl
+                             | _ -> false) in 
+             if (check_core_type l) then 
              let plhs = 
               let rec aux i l =        
                match l with 
@@ -826,17 +911,40 @@ let dali_of_adt tds td mn =
                     | Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, []) -> aux (i+1) al (argn :: ls)                                                                    
                     | _ -> aux (i+1) al (argn :: ls) in 
                     aux 0 l [] in 
-          
-                    Exp.match_ (evar ak) [(Exp.case plhs prhs)]
-        | Ptyp_constr ({txt = Longident.Lident "int"}, []) -> app (evar "@@") [evar "Lwt.return" ; constr "Int64.of_int" [(evar "a")]] 
+                    Exp.match_ (evar ak) [(Exp.case plhs prhs)] 
+                    else app (evar "@@") [evar "Lwt.return" ; (evar "a")]  
+        | Ptyp_constr ({txt = Longident.Lident "int"}, []) -> 
+          app (evar "@@") [evar "Lwt.return" ; constr "Int64.of_int" [(evar "a")]] 
+        | Ptyp_constr ({txt = Longident.Lident "int64"}, []) -> 
+          app (evar "@@") [evar "Lwt.return" ; (evar "a")]
+        | Ptyp_constr ({txt = Longident.Lident "int32"}, []) -> 
+          app (evar "@@") [evar "Lwt.return" ; (evar "a")]
+        | Ptyp_constr ({txt = Longident.Lident "char"}, []) -> 
+          app (evar "@@") [evar "Lwt.return" ; (evar "a")]
+        | Ptyp_constr ({txt = Longident.Lident "string"}, []) -> 
+          app (evar "@@") [evar "Lwt.return" ; (evar "a")]
         | Ptyp_constr ({txt = Longident.Lident "list"},
            [{ptyp_desc = Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, [])}]) -> 
+           app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
+        | Ptyp_constr ({txt = Longident.Lident "list"},
+           [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "char")}, [])}]) -> 
+           app (evar "@@") [evar "Lwt.return" ; (evar "a")]
+        | Ptyp_constr ({txt = Longident.Lident "list"},
+           [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "string")}, [])}]) -> 
+           app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
+        | Ptyp_constr ({txt = Longident.Lident "list"},
+           [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int32")}, [])}]) -> 
            app (evar "@@") [evar "Lwt.return" ; (evar "a")]  
-        | Ptyp_constr ({txt = Longident.Lident "char"}, []) -> 
-           app (evar "@@") [evar "Lwt.return" ; (evar "a")]  
-        | Ptyp_constr ({txt = Longident.Lident "string"}, []) -> 
-           app (evar "@@") [evar "Lwt.return" ; (evar "a")]            
-        | _ -> assert false)
+        | Ptyp_constr ({txt = Longident.Lident "list"},
+           [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int64")}, [])}]) -> 
+           app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
+        | Ptyp_constr ({txt = Longident.Lident "list"},
+           [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int")}, [])}]) -> 
+           app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
+        | Ptyp_constr ({txt = Longident.Lident "list"},
+           [{ptyp_desc = Ptyp_tuple l}]) -> 
+           app (evar "@@") [evar "Lwt.return" ; (evar "a")]   
+        | x -> app (evar "@@") [evar "Lwt.return" ; (evar "a")])              
         | None -> assert false) 
     | Ptype_open -> assert false in
   kind_mapper td "a"
@@ -910,7 +1018,15 @@ let dali_to_adt tds td mn =
     | Ptype_abstract -> (match ctd.ptype_manifest with 
         | Some x -> 
           (match x.ptyp_desc with 
-          | Ptyp_tuple l ->
+          | Ptyp_tuple l -> 
+             let rec check_core_type l = match l with 
+              | [] -> true
+              | x :: xl -> (match x.ptyp_desc with 
+                             | Ptyp_constr ({txt = Longident.Lident n}, _) ->
+                               if n = td.ptype_name.txt then true 
+                               else check_core_type xl
+                             | _ -> false) in 
+             if (check_core_type l) then 
              let plhs = 
               let rec aux i l =        
                match l with 
@@ -952,17 +1068,40 @@ let dali_to_adt tds td mn =
                     | Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, []) -> aux (i+1) al (argn :: ls)                                                                    
                     | _ -> aux (i+1) al (argn :: ls) in 
                     aux 0 l [] in 
-          
-                    Exp.match_ (evar ak) [(Exp.case plhs prhs)]
-                    | Ptyp_constr ({txt = Longident.Lident "int"}, []) -> app (evar "@@") [evar "Lwt.return" ; constr "Int64.to_int" [(evar "a")]]
+                    Exp.match_ (evar ak) [(Exp.case plhs prhs)] else
+                    app (evar "@@") [evar "Lwt.return" ; (evar "t")]
+                    | Ptyp_constr ({txt = Longident.Lident "int"}, []) -> 
+                      app (evar "@@") [evar "Lwt.return" ; constr "Int64.to_int" [(evar "a")]]
+                    | Ptyp_constr ({txt = Longident.Lident "int32"}, []) -> 
+                      app (evar "@@") [evar "Lwt.return" ; (evar "t")]
+                    | Ptyp_constr ({txt = Longident.Lident "int64"}, []) -> 
+                      app (evar "@@") [evar "Lwt.return" ; (evar "t")]
+                    | Ptyp_constr ({txt = Longident.Lident "char"}, []) -> 
+                      app (evar "@@") [evar "Lwt.return" ; (evar "t")]
+                    | Ptyp_constr ({txt = Longident.Lident "string"}, []) -> 
+                      app (evar "@@") [evar "Lwt.return" ; (evar "t")]
                     | Ptyp_constr ({txt = Longident.Lident "list"},
                       [{ptyp_desc = Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, [])}]) -> 
-                      app (evar "@@") [evar "Lwt.return" ; (evar "t")]  
-                    | Ptyp_constr ({txt = Longident.Lident "char"}, []) -> 
-                       app (evar "@@") [evar "Lwt.return" ; (evar "t")]  
-                    | Ptyp_constr ({txt = Longident.Lident "string"}, []) -> 
-                       app (evar "@@") [evar "Lwt.return" ; (evar "t")]                 
-                      | _ -> assert false)
+                      app (evar "@@") [evar "Lwt.return" ; (evar "t")] 
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                     [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "char")}, [])}]) -> 
+                     app (evar "@@") [evar "Lwt.return" ; (evar "t")]  
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                     [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "string")}, [])}]) -> 
+                     app (evar "@@") [evar "Lwt.return" ; (evar "t")] 
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                     [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int32")}, [])}]) -> 
+                     app (evar "@@") [evar "Lwt.return" ; (evar "t")] 
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                     [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int64")}, [])}]) -> 
+                     app (evar "@@") [evar "Lwt.return" ; (evar "t")] 
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                     [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int")}, [])}]) -> 
+                     app (evar "@@") [evar "Lwt.return" ; (evar "t")] 
+                    | Ptyp_constr ({txt = Longident.Lident "list"},
+                     [{ptyp_desc = Ptyp_tuple l}]) -> 
+                     app (evar "@@") [evar "Lwt.return" ; (evar "t")]                 
+                    | x -> app (evar "@@") [evar "Lwt.return" ; (evar "a")])
          | None -> assert false) 
     | Ptype_open -> assert false in
   kind_mapper td "t"
@@ -1005,7 +1144,7 @@ let dali_irmin_tie_convert madt tds =
 (* mergeable_functs is payload -> structure_item type *)
 (* mmod_inst is module_expr type *)
 (* bcsto_inst is a module_expr type *)
-let dali_derive tds td dts mn  =
+let dali_derive tds td dts mn =
    (*let template = "" in *)
   let template = [%blob "ppx/new_dali_template_with_atom.ml"] in
   let adt_mod = dali_adt_mod mn in
@@ -1043,7 +1182,7 @@ let using_dali_mapper argv =
             | { ptype_attributes = [({txt = "derive"}, p) ]; } as td :: _ ->
               (match p with
                | PStr [{pstr_desc= Pstr_eval({pexp_desc = Pexp_ident {txt = Longident.Lident "versioned"}}, _); _}] ->
-                 dali_derive tds td (List.rev dt) mname
+                 dali_derive tds td (List.rev dt) mname 
                | PStr [{pstr_desc= Pstr_eval({pexp_desc = Pexp_ident {txt = Longident.Lident "ezjsonm"}}, _); _}] ->
                  aux r (td :: dt)
                | _ -> assert false)
