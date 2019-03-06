@@ -1,0 +1,52 @@
+open Lwt.Infix
+open Irmin_unix
+
+module Item = 
+ struct 
+  module OC = Counter.Make 
+  type t = {item_id : string; item_quantity : OC.t}
+
+  let compare = Pervasives.compare
+
+  let get_quantity_of_item i = i.item_quantity
+
+  let merge3 ~ancestor v1 v2 = if ((ancestor.item_id = v1.item_id) && (v1.item_id = v2.item_id) && (ancestor.item_id = v2.item_id)) 
+                              then {item_id = ancestor.item_id ; item_quantity = OC.merge (ancestor.item_quantity) (v1.item_quantity) (v2.item_quantity)} 
+                              else failwith "Merge not possible"
+
+  let resolve x y = {item_id = x.item_id ; item_quantity = 0}
+end 
+
+module Cart  = 
+ struct 
+ type atom = Item.t
+ module OI = Item 
+ module OS = Set_imp.Make(Item)
+ type t = {cart_id : string; items : OS.t}
+
+ let check_item_in_items item is = OS.mem item
+     
+ let check_item_in_cart item cart = check_item_in_items item (cart.items)
+
+ let rec add_item_to_items item is = if (check_item_in_items itemID is) then (match is with 
+ 	                                                                      | OS.Empty -> [{OI.item_id = itemID; OI.item_quantity = n}]
+                                                                          | OS.Node(l;v;r;_) -> (if r.item_id = item.item_id then {OI.item_id = item.item_id; OI.item_quantity = r.item_quantity + item.item_quantity} else 
+                                                                          	                                                   (add_item_to_items item tl)))
+                                else OS.insert is (OS.length is) {item_id = itemID; item_quantity = n}
+
+
+ let rec remove_item_to_items itemID n is = if (Item.check_item_in_items itemID is) then (match is with 
+ 	                                                                      | [] -> []
+                                                                          | h :: tl -> (if h.item_id = itemID then ({OI.item_id = itemID ; OI.item_quantity = (h.item_quantity - n)} :: tl) else (remove_item_to_items itemID n tl)))
+                                else OS.delete (OS.length is) {item_id = itemID; item_quantity = n}
+
+ let add_item_to_cart itemID n cart = if (check_item_in_cart itemID cart) then add_item_to_items itemID n (cart.items)
+                            else failwith "Adding not possible"
+
+ let add_item_to_cart itemID n cart = if (check_item_in_cart itemID cart) then remove_item_to_items itemID n (cart.items)
+                            else failwith "Adding not possible"
+
+
+
+
+end 

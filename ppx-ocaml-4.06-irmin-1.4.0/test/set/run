@@ -1,0 +1,2 @@
+ocamlfind ocamlopt derived_set.ml -o list -package ezjsonm,irmin-unix,irmin-http,lwt.unix -linkpkg -thread
+

@@ -71,15 +71,26 @@ module type S =
 module Rbset(Atom: ATOM) =
 struct
   type elt = Atom.t[@@derive ezjsonm]
-
-  type t =
-    | Black of t * elt * t
-    | Red of t * elt * t
-    | Empty [@@derive versioned]
+  
+  type node = (t * Atom.t * t)
+  and t =
+    | Empty 
+    | Black of node
+    | Red of node[@@derive versioned]
 
   type enum =
     | More of elt * t * enum
     | End [@@derive ezjsonm]
+
+  (*and t =
+    | Black of targ
+    | Red of targ
+    | Empty of nil [@@derive versioned]*)
+  
+  (*type earg = Atom.t * t * enum
+  and enum =
+    | More of earg
+    | End [@@derive ezjsonm]*)
 
   let rec enum s e =
     match s with
@@ -366,6 +377,6 @@ struct
         else l, true, r
     in fold split_aux s (Empty, false, Empty)
 
-  let merge old v1 v2 = failwith "Unimpl."
+  let merge3 old v1 v2 = failwith "Unimpl."
 end[@@derive_versioned]
 

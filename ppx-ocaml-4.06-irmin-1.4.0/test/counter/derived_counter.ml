@@ -22,11 +22,14 @@ module ICounter =
       | None -> failwith @@ (msg ^ ": Expected Some. Got None.")
     module MakeVersioned(Config:Config) =
       struct
+        module OM = Counter
+        open OM
         type madt = int64
         module IrminConvert = struct 
-                                     let () = () end
-        module IrminConvertTie = struct 
-                                        let madt = Irmin.Type.int64 end
+                                      end
+        module IrminConvertTie =
+          struct 
+                 let madt = let open Irmin.Type in int64 end
         module AO_value =
           (struct
              type t = madt

@@ -1,26 +1,25 @@
 module Canvas =
   struct
     type pixel = {
-      r: char ;
-      g: char ;
-      b: char }[@@derive ezjsonm]
-    let default_pixel =
-      { r = (Char.chr 1); g = (Char.chr 1); b = (Char.chr 1) }
+      r: int32 ;
+      g: int32 ;
+      b: int32 }[@@derive ezjsonm]
+    let default_pixel = { r = 0l; g = 0l; b = 0l }
     type node = {
       tl_t: t ;
       tr_t: t ;
       bl_t: t ;
       br_t: t }
     and t =
-      | B of node 
-      | N of pixel [@@derive versioned]
-    type loc = {
-      x: int ;
-      y: int }[@@derive ezjsonm]
+      | N of pixel 
+      | B of node [@@derive versioned]
     type canvas = {
       max_x: int ;
       max_y: int ;
       t: t }
+    type loc = {
+      x: int ;
+      y: int }
     let blank = N default_pixel
     let plain px = N px
     let new_canvas max_x max_y = { max_x; max_y; t = blank }
@@ -151,10 +150,10 @@ module Canvas =
                let loc' = { x = (loc.x - mid_x); y = (loc.y - mid_y) } in
                get_px br_c loc')
     let color_mix px1 px2 =
-      (let f = Char.code in
-       let h x y = Char.chr @@ ((x + y) / 2) in
-       let (r1, g1, b1) = ((f px1.r), (f px1.g), (f px1.b)) in
-       let (r2, g2, b2) = ((f px2.r), (f px2.g), (f px2.b)) in
+      (let max32 x y = if (Int32.compare x y) >= 0 then x else y in
+       let h x y = max32 (Int32.add x y) 255l in
+       let (r1, g1, b1) = ((px1.r), (px1.g), (px1.b)) in
+       let (r2, g2, b2) = ((px2.r), (px2.g), (px2.b)) in
        let (r, g, b) = ((h r1 r2), (h g1 g2), (h b1 b2)) in { r; g; b } : 
       pixel)
     let b_of_n px =
@@ -191,12 +190,11 @@ module Canvas =
          | N px when not (px = default_pixel) ->
              if (min_x = max_x) && (min_y = max_y)
              then
-               Printf.printf "<%d,%d>: (%d,%d,%d)\n" min_x min_y
-                 (Char.code px.r) (Char.code px.g) (Char.code px.b)
+               Printf.printf "<%d,%d>: (%ld,%ld,%ld)\n" min_x min_y px.r 
+                 px.g px.b
              else
-               Printf.printf "<%d,%d> to <%d,%d>: (%d,%d,%d)\n" min_x min_y
-                 max_x max_y (Char.code px.r) (Char.code px.g)
-                 (Char.code px.b)
+               Printf.printf "<%d,%d> to <%d,%d>: (%ld,%ld,%ld)\n" min_x
+                 min_y max_x max_y px.r px.g px.b
          | N px -> ()
          | B { tl_t; tr_t; bl_t; br_t } ->
              let (mid_x, mid_y) =
@@ -212,9 +210,7 @@ module Canvas =
         for y = 1 to c.max_y do
           let px = get_px c { x; y } in
           if not (px = default_pixel)
-          then
-            Printf.printf "<%d,%d>: (%d,%d,%d)\n" x y (Char.code px.r)
-              (Char.code px.g) (Char.code px.b)
+          then Printf.printf "<%d,%d>: (%ld,%ld,%ld)\n" x y px.r px.g px.b
           else ()
         done
       done
@@ -235,22 +231,24 @@ module ICanvas =
       | None -> failwith @@ (msg ^ ": Expected Some. Got None.")
     module MakeVersioned(Config:Config) =
       struct
+        module OM = Canvas
+        open OM
         type node = {
           tl_t: K.t ;
           tr_t: K.t ;
           bl_t: K.t ;
           br_t: K.t }
         and madt =
-          | B of node 
           | N of pixel 
+          | B of node 
         module IrminConvert =
           struct
             let pixel =
               let open Irmin.Type in
                 ((((record "pixel" (fun r -> fun g -> fun b -> { r; g; b }))
-                     |+ (field "r" Irmin.Type.char (fun t -> t.r)))
-                    |+ (field "g" Irmin.Type.char (fun t -> t.g)))
-                   |+ (field "b" Irmin.Type.char (fun t -> t.b)))
+                     |+ (field "r" int32 (fun t -> t.r)))
+                    |+ (field "g" int32 (fun t -> t.g)))
+                   |+ (field "b" int32 (fun t -> t.b)))
                   |> sealr
             let mknode t =
               let open Irmin.Type in
@@ -267,15 +265,15 @@ module ICanvas =
             and mkmadt node =
               let open Irmin.Type in
                 (((variant "madt"
-                     (fun b ->
-                        fun n -> function | B a0 -> b a0 | N a0 -> n a0))
-                    |~ (case1 "B" node (fun x -> B x)))
-                   |~ (case1 "N" pixel (fun x -> N x)))
+                     (fun n ->
+                        fun b -> function | N a0 -> n a0 | B a0 -> b a0))
+                    |~ (case1 "N" pixel (fun x -> N x)))
+                   |~ (case1 "B" node (fun x -> B x)))
                   |> sealv
           end
         module IrminConvertTie =
           struct
-            let () = ()
+            
             let () = ()
             and (node, madt) =
               let open Irmin.Type in
@@ -321,7 +319,8 @@ module ICanvas =
             let rec add_adt t (a : Canvas.t) =
               ((add t) =<<
                  (match a with
-                  | Canvas.B a0 ->
+                  | OM.N a0 -> Lwt.return @@ (N a0)
+                  | OM.B a0 ->
                       (match a0 with
                        | { tl_t; tr_t; bl_t; br_t;_} ->
                            (add_adt t tl_t) >>=
@@ -339,13 +338,13 @@ module ICanvas =
                                                     bl_t = bl_t';
                                                     br_t = br_t'
                                                   }))))))
-                        >>= ((fun a0' -> Lwt.return @@ (B a0')))
-                  | Canvas.N a0 -> Lwt.return @@ (N a0)) : K.t Lwt.t)
+                        >>= ((fun a0' -> Lwt.return @@ (B a0')))) : K.t Lwt.t)
             let rec read_adt t (k : K.t) =
               ((find t k) >>=
                  (fun aop ->
                     let a = from_just aop "to_adt" in
                     match a with
+                    | N a0 -> Lwt.return @@ (OM.N a0)
                     | B a0 ->
                         (match a0 with
                          | { tl_t; tr_t; bl_t; br_t;_} ->
@@ -359,13 +358,13 @@ module ICanvas =
                                                (fun br_t' ->
                                                   Lwt.return @@
                                                     {
-                                                      Canvas.tl_t = tl_t';
-                                                      Canvas.tr_t = tr_t';
-                                                      Canvas.bl_t = bl_t';
-                                                      Canvas.br_t = br_t'
+                                                      OM.tl_t = tl_t';
+                                                      OM.tr_t = tr_t';
+                                                      OM.bl_t = bl_t';
+                                                      OM.br_t = br_t'
                                                     }))))))
-                          >>= ((fun a0' -> Lwt.return @@ (Canvas.B a0')))
-                    | N a0 -> Lwt.return @@ (Canvas.N a0)) : Canvas.t Lwt.t)
+                          >>= ((fun a0' -> Lwt.return @@ (OM.B a0')))) : 
+              Canvas.t Lwt.t)
           end
         module type IRMIN_STORE_VALUE  =
           sig
@@ -381,7 +380,8 @@ module ICanvas =
                   (fun ao_store ->
                      let aostore_add adt = AO_store.add_adt ao_store adt in
                      match a with
-                     | Canvas.B a0 ->
+                     | OM.N a0 -> Lwt.return @@ (N a0)
+                     | OM.B a0 ->
                          (match a0 with
                           | { tl_t; tr_t; bl_t; br_t;_} ->
                               (aostore_add tl_t) >>=
@@ -399,13 +399,14 @@ module ICanvas =
                                                        bl_t = bl_t';
                                                        br_t = br_t'
                                                      }))))))
-                           >>= ((fun a0' -> Lwt.return @@ (B a0')))
-                     | Canvas.N a0 -> Lwt.return @@ (N a0)) : t Lwt.t)
+                           >>= ((fun a0' -> Lwt.return @@ (B a0')))) : 
+               t Lwt.t)
              let to_adt (t : t) =
                ((AO_store.create ()) >>=
                   (fun ao_store ->
                      let aostore_read k = AO_store.read_adt ao_store k in
                      match t with
+                     | N a0 -> Lwt.return @@ (OM.N a0)
                      | B a0 ->
                          (match a0 with
                           | { tl_t; tr_t; bl_t; br_t;_} ->
@@ -419,13 +420,13 @@ module ICanvas =
                                                 (fun br_t' ->
                                                    Lwt.return @@
                                                      {
-                                                       Canvas.tl_t = tl_t';
-                                                       Canvas.tr_t = tr_t';
-                                                       Canvas.bl_t = bl_t';
-                                                       Canvas.br_t = br_t'
+                                                       OM.tl_t = tl_t';
+                                                       OM.tr_t = tr_t';
+                                                       OM.bl_t = bl_t';
+                                                       OM.br_t = br_t'
                                                      }))))))
-                           >>= ((fun a0' -> Lwt.return @@ (Canvas.B a0')))
-                     | N a0 -> Lwt.return @@ (Canvas.N a0)) : Canvas.t Lwt.t)
+                           >>= ((fun a0' -> Lwt.return @@ (OM.B a0')))) : 
+               Canvas.t Lwt.t)
              let rec merge ~old:(old : t Irmin.Merge.promise)  (v1 : t)
                (v2 : t) =
                let open Irmin.Merge.Infix in
@@ -475,15 +476,15 @@ module ICanvas =
                           let path_k = [fname_of_hash k] in
                           update t path_k v_k)) in
               (match v with
+               | N a0 -> Lwt.return()
                | B a0 ->
                    (match a0 with
                     | { tl_t; tr_t; bl_t; br_t;_} ->
                         List.fold_left
                           (fun m -> fun k -> m >>= (fun () -> link_to_tree k))
                           (Lwt.return()) [tl_t; tr_t; bl_t; br_t])
-                     >>= ((fun a0' -> Lwt.return()))
-               | N a0 -> Lwt.return()) >>=
-                (fun () -> Store.set t p v ~info:(info msg))
+                     >>= ((fun a0' -> Lwt.return())))
+                >>= (fun () -> Store.set t p v ~info:(info msg))
           end
         module Vpst :
           sig

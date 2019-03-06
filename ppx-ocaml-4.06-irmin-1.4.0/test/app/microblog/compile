@@ -1,0 +1,1 @@
+ocamlfind ocamlopt msigs.ml mvector_list.ml microblog.ml imicroblog.ml -o a -package jsonm,irmin-unix,lwt.unix -linkpkg -thread

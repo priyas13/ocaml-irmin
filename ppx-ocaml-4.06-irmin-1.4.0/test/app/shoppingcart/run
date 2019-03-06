@@ -1,0 +1,1 @@
+ocamlfind ocamlopt counter.ml msigs.ml  mvector_list.ml  shoppingcart_app.ml item_test1.ml cart_test1.ml -o sc -package ezjsonm,irmin-unix,irmin-http,lwt.unix -linkpkg -thread

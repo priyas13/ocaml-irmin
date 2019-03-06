@@ -49,7 +49,330 @@ let get_core_from_core_option ctd = match ctd.ptype_manifest with
 let derive_to_irmin (tds:type_declaration list) = 
   match tds with 
   | [] -> Str.value Nonrecursive []
-  | [x] -> Str.value Nonrecursive []
+  | [x] -> if x.ptype_name.txt = "madt" then Str.value Nonrecursive [] else 
+  let mk_to_irmin_name t = 
+    (* ptype_name field of t is the type name *)
+    (t.ptype_name.txt) in
+  let rec kind_mapper ctd =
+  (* here tt is the type expression which contains ptyp_desc, ptyp_loc and ptyp_attributes *)
+  (* ptyp_desc for the core type tt is matched against each constructor *)
+  (* a is the value *)
+    let type_to_to_irmin_expr tt a =
+      (match tt.ptyp_desc with
+        (* Here n is a type and t is the string. Longident.flatten n returns the string of type n *)
+        (* evar a creates the Exp.ident with the text and location *)
+        (* app calls the function on the second argument by using E.apply *)
+        (* here the first case is for the recursive type *)
+      | Ptyp_constr ({txt = Ldot (Lident "Atom", "t")}, []) -> (constr ("Atom.t") [])
+            | Ptyp_constr ({txt = Longident.Lident n}, x) -> 
+              if n = ctd.ptype_name.txt 
+              then (constr ("K.t") []) 
+              else 
+               (match n with 
+                | "int32" -> (constr "int32" [])
+                | "int64" -> (constr "int64" [])
+                | "char" -> (constr "char" [])
+                | "string" -> (constr "string" [])
+                | "atom" -> (constr "OM.atom" [])
+                | "list" -> 
+                  (match x with 
+                   | [{ptyp_desc = Ptyp_constr ({txt = Ldot (Lident "Atom", "t")}, [])}] -> 
+                     (constr "list Atom.t" [])
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Lident "int")}, [])}] -> 
+                     (constr "list int64" [])
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Lident "int32")}, [])}] -> 
+                     (constr "list int32" [])
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Lident "int64")}, [])}] -> 
+                     (constr "list int64" [])
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Lident "char")}, [])}] -> 
+                     (constr "list char" [])
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Lident "string")}, [])}] -> 
+                     (constr "list string" [])
+                   | [{ptyp_desc = Ptyp_tuple l}] -> 
+                      (match l with 
+                       | [] -> failwith "Nothing left"
+                       | a :: al -> 
+                         let mapper a = 
+                          (match a.ptyp_desc with 
+                            | Ptyp_constr ({txt = Lident "t"}, []) -> (constr ("K.t") [])
+                            | Ptyp_constr ({txt = Ldot (Lident "Atom", "t")}, []) -> (constr ("Atom.t") [])
+                            | Ptyp_constr ({txt = Longident.Lident n}, x) -> 
+                              if n = ctd.ptype_name.txt 
+                                then (constr ("K.t") []) 
+                                 else (match n with 
+                                      | "int64" -> (constr "int64" [])
+                                      | "int32" -> (constr "int32" [])
+                                      | "int" -> (constr "int64" [])
+                                      | "char" -> (constr "char" [])
+                                      | "string" -> (constr "string" [])
+                                      | "atom" -> (constr "OM.atom" [])
+                                      | _ -> assert false)
+                            | Ptyp_constr ({txt = n}, x) -> 
+                              let tn = String.concat "." (Longident.flatten n) in
+                                 let prefix = (match tn with
+                                    | "int" -> "int64"
+                                    | "int32" -> "int32"
+                                    | "int64" -> "int64"
+                                    | "string" -> "string"
+                                    | "char" -> "char"
+                                    | "Atom.t" -> "Atom.t"
+                                    | "atom" -> "OM.atom"
+                                    | x -> x) in (constr prefix [])
+                            | _ -> assert false) in 
+                             app (evar "list") [(List.fold_right 
+                              (fun x y -> 
+                                (app (Exp.ident ({txt = (Lident "pair"); 
+                                                  loc = !Ast_helper.default_loc})) [x; y])) 
+                               (remove_last_element (List.map (fun x -> mapper x) l)) 
+                               (last_element ((List.map (fun x -> mapper x) l))))]) 
+                       | _ -> assert false)
+                    | x -> (constr "x" []))
+                  | Ptyp_constr ({txt = t}, x) -> (constr ("K.t") [])
+                  | Ptyp_tuple l -> 
+                      (match l with 
+                       | [] -> failwith "Nothing left"
+                       | a :: al -> 
+                         let mapper a = 
+                           (match a.ptyp_desc with 
+                              | Ptyp_constr ({txt = Lident "t"}, []) -> (constr ("K.t") [])
+                              | Ptyp_constr ({txt = Ldot (Lident "Atom", "t")}, []) -> 
+                                (constr ("Atom.t") [])
+                              | Ptyp_constr ({txt = Lident "elt"}, []) -> (constr ("Atom.t") [])
+                              | Ptyp_constr ({txt = Longident.Lident n}, x) -> 
+                                if n = ctd.ptype_name.txt 
+                                 then (constr ("K.t") []) 
+                                 else (match n with 
+                                      | "int64" -> (constr "int64" [])
+                                      | "int32" -> (constr "int32" [])
+                                      | "char" -> (constr "char" [])
+                                      | "string" -> (constr "string" [])
+                                      | "atom" -> (constr "OM.atom" [])
+                                      | _ -> assert false)
+                              | Ptyp_constr ({txt = n}, x) -> 
+                                let tn = String.concat "." (Longident.flatten n) in
+                                   let prefix = (match tn with
+                                      | "int" -> "int64"
+                                      | "int32" -> "int32"
+                                      | "string" -> "string"
+                                      | "char" -> "char"
+                                      | "Atom.t" -> "Atom.t"
+                                      | "atom" -> "OM.atom"
+                                      | x -> x) in (constr prefix [])
+                              | _ -> assert false) in 
+                               (List.fold_right 
+                                (fun x y -> (app (Exp.ident ({txt = (Lident "pair"); 
+                                                              loc = !Ast_helper.default_loc})) [x; y])) 
+                                 (remove_last_element (List.map (fun x -> mapper x) l)) 
+                                 (last_element ((List.map (fun x -> mapper x) l))))) 
+      | Ptyp_var n -> (evar n) 
+      | _ -> failwith "[derive ezjsonm]: Not implemented.") in
+        let case_variant c = match c.pcd_args with 
+                 | Pcstr_record l' -> assert false
+                 | Pcstr_tuple l' -> 
+                   match l' with 
+                   | [] -> app (Exp.ident ({txt = Lident "case0"; 
+                                            loc = !Ast_helper.default_loc}))
+                           [Exp.constant (Pconst_string (c.pcd_name.txt, None));
+                            evar (c.pcd_name.txt)]
+                   | x :: xl -> app (Exp.ident ({txt = Lident "case1"; 
+                                                 loc = !Ast_helper.default_loc}))
+                                    [Exp.constant (Pconst_string (c.pcd_name.txt, None)); 
+                                     (type_to_to_irmin_expr 
+                                      (List.hd (get_core_list (c.pcd_args))) c.pcd_name.txt);                  
+                                    (Exp.fun_ Nolabel None (pvar "x") 
+                                     (Exp.construct ({txt = (Lident (c.pcd_name.txt)); 
+                                                      loc = !Ast_helper.default_loc}) 
+                                                     (Some (Exp.ident ({txt = (Lident "x"); 
+                                                                        loc = !Ast_helper.default_loc})))))] in 
+    let pat_mapper_tuple c = match c.pcd_args with 
+                             | Pcstr_record l' -> assert false
+                             | Pcstr_tuple l' -> 
+                               match l' with 
+                              | [] -> let name = c.pcd_name.txt in 
+                                      let pl = pconstr name [] in 
+                                      let pr = constr (String.lowercase_ascii name) [] in 
+                                      (pl,pr) 
+                              | x :: xl ->  let mkarg x = "a" ^ string_of_int x in
+                                            let name = c.pcd_name.txt in
+                                            let pl = pconstr name 
+                                                     ((List.mapi (fun i e -> (Pat.var @@ mkaststr (mkarg i)))) 
+                                                     (get_core_list (c.pcd_args))) in
+                                            let pr =  constr (String.lowercase_ascii name) 
+                                                      (List.mapi (fun i e -> (Exp.ident ({txt = (Lident (mkarg i)); 
+                                                                     loc = !Ast_helper.default_loc}))) 
+                                            (get_core_list (c.pcd_args))) in 
+                               (pl, pr) in
+    match ctd.ptype_kind with
+      | Ptype_open -> assert false 
+      | Ptype_abstract ->  let exp_ty ctd = 
+        (match ctd.ptype_manifest with 
+         | Some c -> 
+           (match c.ptyp_desc with
+            | Ptyp_constr ({txt = Ldot (Lident "Atom", "t")}, []) -> (constr ("Atom.t") [])
+            | Ptyp_constr ({txt = Longident.Lident n}, x) -> 
+              if n = ctd.ptype_name.txt 
+              then (constr ("K.t") []) 
+              else 
+               (match n with 
+                | "int32" -> (constr "int32" [])
+                | "int64" -> (constr "int64" [])
+                | "char" -> (constr "char" [])
+                | "string" -> (constr "string" [])
+                | "atom" -> (constr "OM.atom" [])
+                | "list" -> 
+                  (match x with 
+                   | [{ptyp_desc = Ptyp_constr ({txt = Ldot (Lident "Atom", "t")}, [])}] -> 
+                     (constr "list Atom.t" [])
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Lident "atom")}, [])}] -> 
+                     (constr "list atom" [])
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Lident "int")}, [])}] -> 
+                     (constr "list int64" [])
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Lident "int32")}, [])}] -> 
+                     (constr "list int32" [])
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Lident "int64")}, [])}] -> 
+                     (constr "list int64" [])
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Lident "char")}, [])}] -> 
+                     (constr "list char" [])
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Lident "string")}, [])}] -> 
+                     (constr "list string" [])
+                   | [{ptyp_desc = Ptyp_tuple l}] -> 
+                      (match l with 
+                       | [] -> failwith "Nothing left"
+                       | a :: al -> 
+                         let mapper a = 
+                          (match a.ptyp_desc with 
+                            | Ptyp_constr ({txt = Lident "t"}, []) -> (constr ("K.t") [])
+                            | Ptyp_constr ({txt = Ldot (Lident "Atom", "t")}, []) -> (constr ("Atom.t") [])
+                            | Ptyp_constr ({txt = Longident.Lident n}, x) -> 
+                              if n = ctd.ptype_name.txt 
+                                then (constr ("K.t") []) 
+                                 else (match n with 
+                                      | "int64" -> (constr "int64" [])
+                                      | "int32" -> (constr "int32" [])
+                                      | "int" -> (constr "int64" [])
+                                      | "char" -> (constr "char" [])
+                                      | "string" -> (constr "string" [])
+                                      | "atom" -> (constr "OM.atom" [])
+                                      | _ -> assert false)
+                            | Ptyp_constr ({txt = n}, x) -> 
+                              let tn = String.concat "." (Longident.flatten n) in
+                                 let prefix = (match tn with
+                                    | "int" -> "int64"
+                                    | "int32" -> "int32"
+                                    | "int64" -> "int64"
+                                    | "string" -> "string"
+                                    | "char" -> "char"
+                                    | "Atom.t" -> "Atom.t"
+                                    | "atom" -> "OM.atom"
+                                    | x -> x) in (constr prefix [])
+                            | _ -> assert false) in 
+                             app (evar "list") [(List.fold_right 
+                              (fun x y -> 
+                                (app (Exp.ident ({txt = (Lident "pair"); 
+                                                  loc = !Ast_helper.default_loc})) [x; y])) 
+                               (remove_last_element (List.map (fun x -> mapper x) l)) 
+                               (last_element ((List.map (fun x -> mapper x) l))))]) 
+                       | _ -> assert false)
+                    | _ -> assert false)
+                  | Ptyp_constr ({txt = t}, x) -> (constr ("K.t") [])
+                  | Ptyp_tuple l -> 
+                      (match l with 
+                       | [] -> failwith "Nothing left"
+                       | a :: al -> 
+                         let mapper a = 
+                           (match a.ptyp_desc with 
+                              | Ptyp_constr ({txt = Lident "t"}, []) -> (constr ("K.t") [])
+                              | Ptyp_constr ({txt = Ldot (Lident "Atom", "t")}, []) -> 
+                                (constr ("Atom.t") [])
+                              | Ptyp_constr ({txt = Lident "elt"}, []) -> (constr ("Atom.t") [])
+                              | Ptyp_constr ({txt = Longident.Lident n}, x) -> 
+                                if n = ctd.ptype_name.txt 
+                                 then (constr ("K.t") []) 
+                                 else (match n with 
+                                      | "int64" -> (constr "int64" [])
+                                      | "int32" -> (constr "int32" [])
+                                      | "char" -> (constr "char" [])
+                                      | "string" -> (constr "string" [])
+                                      | "atom" -> (constr "OM.atom" [])
+                                      | _ -> assert false)
+                              | Ptyp_constr ({txt = n}, x) -> 
+                                let tn = String.concat "." (Longident.flatten n) in
+                                   let prefix = (match tn with
+                                      | "int" -> "int64"
+                                      | "int32" -> "int32"
+                                      | "string" -> "string"
+                                      | "char" -> "char"
+                                      | "Atom.t" -> "Atom.t"
+                                      | "atom" -> "OM.atom"
+                                      | x -> x) in (constr prefix [])
+                              | _ -> assert false) in 
+                               (List.fold_right 
+                                (fun x y -> (app (Exp.ident ({txt = (Lident "pair"); 
+                                                              loc = !Ast_helper.default_loc})) [x; y])) 
+                                 (remove_last_element (List.map (fun x -> mapper x) l)) 
+                                 (last_element ((List.map (fun x -> mapper x) l))))) 
+                     | _ -> assert false)
+        | None -> assert false) in 
+            Vb.mk (pvar @@ (mk_to_irmin_name ctd)) 
+           (Exp.open_ Fresh {txt = Ldot (Lident "Irmin", "Type"); 
+                             loc = !Ast_helper.default_loc} (exp_ty ctd))
+      | Ptype_record l ->
+        let rr = List.map (fun e -> e.pld_name.txt, evar e.pld_name.txt) l in 
+        let ff = List.fold_right (fun x y -> lam (pvar x.pld_name.txt) y) l (record rr) in 
+        let rrr = app (Exp.ident ({txt = (Lident "record"); 
+                                   loc = !Ast_helper.default_loc})) 
+                   [Exp.constant (Pconst_string (mk_to_irmin_name ctd, None)); 
+                    ff] in 
+        let ttt x = app (Exp.ident ({txt = (Lident "field"); 
+                                     loc = !Ast_helper.default_loc}))
+                    [Exp.constant (Pconst_string (x.pld_name.txt, None)); 
+                     (type_to_to_irmin_expr x.pld_type x.pld_name.txt); 
+                    (Exp.fun_ Nolabel None (pvar "t") 
+                    (Exp.field (Exp.ident ({txt = (Lident "t"); 
+                                            loc = !Ast_helper.default_loc})) 
+                               {txt = (Lident x.pld_name.txt); 
+                                loc = !Ast_helper.default_loc}))] in
+        let cc = List.map ttt l in 
+        let rrr' = List.fold_left 
+                    (fun x y -> (app (Exp.ident ({txt = (Lident "|+"); 
+                                                  loc = !Ast_helper.default_loc})) [x;y])) 
+                    rrr cc in 
+        let ty = (Exp.open_ Fresh {txt = Ldot (Lident "Irmin", "Type"); 
+                                         loc = !Ast_helper.default_loc} 
+                          (app (Exp.ident ({txt = (Lident "|>"); 
+                                            loc = !Ast_helper.default_loc})) 
+                             [rrr'; 
+                              (Exp.ident ({txt = (Lident "sealr"); 
+                                           loc = !Ast_helper.default_loc}))])) in 
+        Vb.mk (pvar @@ (mk_to_irmin_name ctd)) ty  
+      | Ptype_variant l ->
+        match l with 
+        | [] -> failwith "no constructors"
+        | x :: xl -> 
+           match x.pcd_args with 
+            | Pcstr_record l' -> assert false
+            | Pcstr_tuple l' -> 
+              let pat_list = List.map (pat_mapper_tuple) l in
+              let pr' = List.fold_right (fun x y -> lam (pvar (String.lowercase_ascii x.pcd_name.txt)) y) 
+                                             l (func (pat_list)) in 
+              let prhs =
+              let cc = List.map (case_variant) l in 
+              let rrr = app (Exp.ident ({txt = (Lident "variant"); 
+                                              loc = !Ast_helper.default_loc})) 
+                                 [Exp.constant (Pconst_string (mk_to_irmin_name ctd, None)); pr'] in 
+                   let rrr' = List.fold_left 
+                             (fun x y -> (app (Exp.ident ({txt = (Lident "|~"); 
+                                                           loc = !Ast_helper.default_loc})) [x;y])) 
+                             rrr cc in  
+                   (Exp.open_ Fresh {txt = Ldot (Lident "Irmin", "Type"); 
+                                                           loc = !Ast_helper.default_loc} 
+                                          (app (Exp.ident ({txt = (Lident "|>"); 
+                                                            loc = !Ast_helper.default_loc})) 
+                                           [rrr'; 
+                                           (Exp.ident ({txt = (Lident "sealv"); 
+                                                        loc = !Ast_helper.default_loc}))])) in 
+              Vb.mk (pvar @@ (mk_to_irmin_name ctd)) prhs in  
+        Str.value Nonrecursive (List.map kind_mapper tds)
   (* t is here a type declaration *)
   | x :: y -> let mk_to_irmin_name t = 
     (* ptype_name field of t is the type name *)
@@ -119,6 +442,7 @@ let derive_to_irmin (tds:type_declaration list) =
                                     | "char" -> "char"
                                     | "Atom.t" -> "Atom.t"
                                     | "atom" -> "OM.atom"
+                                    | "OM.atom" -> "Atom.t"
                                     | x -> x) in (constr prefix [])
                             | _ -> assert false) in 
                              app (evar "list") [(List.fold_right 
@@ -493,14 +817,14 @@ let derive_to_irmin (tds:type_declaration list) =
                                            [rrr'; 
                                            (Exp.ident ({txt = (Lident "sealv"); 
                                                         loc = !Ast_helper.default_loc}))])))) in 
-              Vb.mk (pvar @@ ("mk" ^ mk_to_irmin_name ctd)) prhs in  
+              Vb.mk (pvar @@ ("mk" ^ mk_to_irmin_name ctd)) prhs  in  
         Str.value Nonrecursive (List.map kind_mapper tds)
 
 (* t is any type *)
 let derive_to_irmin_tie (tds:type_declaration list) = 
   match tds with 
   | [] -> Str.value Nonrecursive []
-  | [x] -> let mk_to_irmin_name t = 
+  | [x] -> if x.ptype_name.txt = "madt" then let mk_to_irmin_name t = 
     (* ptype_name field of t is the type name *)
     (t.ptype_name.txt) in
   let rec kind_mapper ctd =
@@ -673,6 +997,8 @@ let derive_to_irmin_tie (tds:type_declaration list) =
                   (match x with 
                    | [{ptyp_desc = Ptyp_constr ({txt = Ldot (Lident "Atom", "t")}, [])}] -> 
                      (constr "list Atom.t" [])
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Lident "atom")}, [])}] -> 
+                     (constr "list atom" [])
                    | [{ptyp_desc = Ptyp_constr ({txt = (Lident "int")}, [])}] -> 
                      (constr "list int64" [])
                    | [{ptyp_desc = Ptyp_constr ({txt = (Lident "int32")}, [])}] -> 
@@ -820,7 +1146,8 @@ let derive_to_irmin_tie (tds:type_declaration list) =
                                            (Exp.ident ({txt = (Lident "sealv"); 
                                                         loc = !Ast_helper.default_loc}))])) in 
               Vb.mk (pvar @@ (mk_to_irmin_name ctd)) prhs in  
-        Str.value Nonrecursive (List.map kind_mapper tds)
+        Str.value Nonrecursive (List.map kind_mapper tds) else 
+        Str.value Nonrecursive []
   (* t is here a type declaration *)
   | x :: y -> let mk_to_irmin_name t = 
     (* ptype_name field of t is the type name *)

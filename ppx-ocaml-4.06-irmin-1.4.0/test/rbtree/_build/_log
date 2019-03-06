@@ -1,0 +1,12 @@
+### Starting build.
+Backtrace:
+                      - Failed to build the target ppx/new_ppx_dali_with_atom.native
+                          - Building ppx/new_ppx_dali_with_atom.native:
+                              - Building ppx/new_ppx_dali_with_atom.cmx:
+                                  - Failed to build all of these:
+                                      - Building ppx/new_ppx_dali_with_atom.ml:
+                                          - Failed to build all of these:
+                                              - Building ppx/new_ppx_dali_with_atom.mly
+                                              - Building ppx/new_ppx_dali_with_atom.mll
+                                      - Building ppx/new_ppx_dali_with_atom.mlpack
+# Compilation unsuccessful.

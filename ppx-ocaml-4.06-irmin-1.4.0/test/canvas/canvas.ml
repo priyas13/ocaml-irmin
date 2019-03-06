@@ -4,12 +4,15 @@
 
 
   (* pixel is a record type which consist of parameters r, g and b where all of them are of char type *)
-  type pixel = {r:char; g:char; b:char} [@@derive ezjsonm]
+  type pixel = {r:int32; g:int32; b:int32} [@@derive ezjsonm]
 
   (* default_pixel is a variable which represents the default pixel value *)
   (*let default_pixel = {r=Char.chr 255; g=Char.chr 255; b=Char.chr
    * 255}*)
-  let default_pixel = {r=Char.chr 1; g=Char.chr 1; b=Char.chr 1}   
+  (* default_pixel is a variable which represents the default pixel value *)
+  (*let default_pixel = {r=Char.chr 255; g=Char.chr 255; b=Char.chr
+   * 255}*)
+  let default_pixel = {r=0l; g=0l; b=0l}   
 
   (* type t is defines as follows which consist of two constructors
   N is a pixel which represents the leaf node 
@@ -17,14 +20,14 @@
   type node = {tl_t: t; tr_t: t; 
             bl_t: t; br_t: t} and 
   t = 
-    | B of node
-    | N of pixel  (* 4 quadrants *)[@@derive versioned]
-
-      (* loc represents the location in a canvas which is basically a record type with two entries *)
-  type loc = {x:int; y:int}[@@derive ezjsonm]
+     | N of pixel
+     | B of node[@@derive versioned]
 
   (* canvas is a record type  -----*)
   type canvas = {max_x:int; max_y:int; t:t}
+
+  (* loc represents the location in a canvas which is basically a record type with two entries *)
+  type loc = {x:int; y:int}
 
   (* blank is a leaf node with default_pixel *)
   let blank = N default_pixel
@@ -33,8 +36,7 @@
   let plain px = N px
 
   (* new_convas takes two argument max_x and max_y and produces a canvas where the canvas is blank *)
-  let new_canvas max_x max_y = 
-    {max_x=max_x; max_y=max_y; t=blank}
+  let new_canvas max_x max_y = {max_x=max_x; max_y=max_y; t=blank}
 
   (* set_px is a function which sets the canvas at location loc with pixel px *)
   (* If the max_x and max_y is less than the loc where we want to set pixel then we return a leaf node with pixel px *)
@@ -142,10 +144,10 @@
    * RGB color mixing algorithm.
    *)
   let color_mix px1 px2 : pixel = 
-    let f = Char.code in
-    let h x y = Char.chr @@ (x + y)/ 2 in
-    let (r1,g1,b1) = (f px1.r, f px1.g, f px1.b) in
-    let (r2,g2,b2) = (f px2.r, f px2.g, f px2.b) in
+    let max32 x y = if Int32.compare x y >= 0 then x else y in
+    let h x y = max32 (Int32.add x y) 255l in
+    let (r1,g1,b1) = (px1.r, px1.g, px1.b) in
+    let (r2,g2,b2) = (px2.r, px2.g, px2.b) in
     let (r,g,b) = (h r1 r2, h g1 g2, h b1 b2) in
       {r=r; g=g; b=b}
 
@@ -184,11 +186,10 @@
     else match t with 
       | N px when not (px = default_pixel) -> 
           if min_x = max_x && min_y = max_y 
-          then Printf.printf "<%d,%d>: (%d,%d,%d)\n" min_x min_y 
-                 (Char.code px.r) (Char.code px.g) (Char.code px.b)
-          else Printf.printf "<%d,%d> to <%d,%d>: (%d,%d,%d)\n"
-                  min_x min_y max_x max_y (Char.code px.r)
-                  (Char.code px.g) (Char.code px.b) 
+          then Printf.printf "<%d,%d>: (%ld,%ld,%ld)\n" 
+                  min_x min_y (px.r) (px.g) (px.b)
+          else Printf.printf "<%d,%d> to <%d,%d>: (%ld,%ld,%ld)\n"
+                  min_x min_y max_x max_y (px.r) (px.g) (px.b) 
       | N px -> ()
       | B {tl_t; tr_t; bl_t; br_t} -> 
           let (mid_x, mid_y) = (min_x + (max_x - min_x + 1)/2, 
@@ -207,35 +208,11 @@
       for y=1 to c.max_y do
         let px = get_px c {x=x; y=y} in
           if not (px = default_pixel)
-          then Printf.printf "<%d,%d>: (%d,%d,%d)\n" x y 
-                 (Char.code px.r) (Char.code px.g) (Char.code px.b)
+          then Printf.printf "<%d,%d>: (%ld,%ld,%ld)\n" 
+                  x y (px.r) (px.g) (px.b)
           else ()
       done
     done
 
 end[@@derive_versioned]
 
-(* main is a fucntion which calls several other functions like 
-c is the variable which defines the canvas which consist of paramter 128 and 128, these both are the maximum x and y coordinates 
-loc is the variable which stores two cordinates for x and y
-c' is a variable that stores the return value of the function set_px, as we know set_px sets the location loc in the canvas c with the pixel 
-then function _ prints c' 
-px is a variable that stores the return value of the function get_px, as we know the get_px gets the pixel at the location loc in the canvas c'
-and so on the rest of the functions defined in main *)
-(*let main () =
-  let c = new_canvas 128 128 in
-  let loc = {x=93; y=127} in
-  let c' = set_px c loc @@ rgb @@ Char.chr 23 in
-  let _ = print c' in
-  let px = get_px c' loc  in
-  let _ = Printf.printf "px(%d,%d)=(%d,%d,%d)\n" loc.x loc.y
-          (Char.code px.r) (Char.code px.g) (Char.code px.b) in
-  let loc' = {x=45; y=78} in
-  let px' = get_px c loc' in
-  let _ = Printf.printf "px(%d,%d)=(%d,%d,%d)\n" loc'.x loc'.y
-          (Char.code px'.r) (Char.code px'.g) (Char.code px'.b) in
-  let c' = set_px c {x=98;y=17} @@ rgb @@ Char.chr 23 in
-  let _ = print c' in
-    ();;*)
-
-(* main ();; *)

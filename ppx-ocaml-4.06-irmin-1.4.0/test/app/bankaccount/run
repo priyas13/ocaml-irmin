@@ -1,0 +1,1 @@
+ocamlfind ocamlopt bank_app.ml -o bank -package ezjsonm,irmin-unix,lwt.unix -linkpkg -thread

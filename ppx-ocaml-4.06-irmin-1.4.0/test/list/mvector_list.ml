@@ -15,7 +15,7 @@ end
 module List (Atom: ATOM)  =
 struct
     type atom = Atom.t[@@derive ezjsonm]
-    type t = atom list[@@derive versioned]
+    type t = Atom.t list[@@derive versioned]
 
     let empty = []
 

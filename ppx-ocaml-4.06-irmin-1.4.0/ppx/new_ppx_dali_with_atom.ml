@@ -325,17 +325,194 @@ let dali_madt_typedef tds td mn =
 
 
 
-let dali_match_type tds td mn = 
-  let open Ast_helper in 
-  let open Ast_convenience in 
-  let rec match_mapper ctd = 
-     match ctd.ptype_kind with 
-      | Ptype_record l -> List.map (fun e -> e.pld_name.txt, pvar e.pld_name.txt) l 
-      | Ptype_variant l -> assert false
-      | Ptype_abstract -> assert false 
-      | Ptype_open -> assert false in 
-      match_mapper td
+let mbcty c ctd = 
+      (match c.ptyp_desc with 
+            | Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, []) -> false
+            | Ptyp_constr ({txt = Longident.Lident n}, x) -> 
+              if n = ctd.ptype_name.txt 
+              then true 
+              else 
+               (match n with 
+                | "int32" -> false
+                | "int64" -> false
+                | "char" -> false
+                | "string" -> false
+                | "atom" -> false
+                | "list" -> 
+                  (match x with 
+                   | [{ptyp_desc = Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, [])}] -> 
+                     false
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int")}, [])}] -> 
+                     false
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int32")}, [])}] -> 
+                     false
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int64")}, [])}] -> 
+                     false
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "char")}, [])}] -> 
+                     false
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "string")}, [])}] -> 
+                     false
+                   | [{ptyp_desc = Ptyp_tuple l}] -> 
+                    (match l with 
+                       | [] -> failwith "Nothing left"
+                       | a :: al -> 
+                         let mapper a = 
+                          (match a.ptyp_desc with 
+                            | Ptyp_constr ({txt = Longident.Lident "t"}, []) -> true
+                            | Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, []) -> false
+                            | Ptyp_constr ({txt = Longident.Lident n}, x) -> 
+                              if n = ctd.ptype_name.txt 
+                                then true 
+                                 else (match n with 
+                                      | "int64" -> false
+                                      | "int32" -> false
+                                      | "int" -> false
+                                      | "char" -> false
+                                      | "string" -> false
+                                      | "atom" -> false
+                                      | _ -> false)
+                            | Ptyp_constr ({txt = n}, x) -> 
+                              let tn = String.concat "." (Longident.flatten n) in
+                                 (match tn with
+                                    | "int" -> false
+                                    | "int32" -> false
+                                    | "int64" -> false
+                                    | "string" -> false
+                                    | "char" -> false
+                                    | "Atom.t" -> false
+                                    | "atom" -> false
+                                    | x -> false) 
+                            | _ -> false) in mapper a)
+                            | x -> true)
+                    | x -> true)  
+                  | Ptyp_constr ({txt = t}, x) -> true
+                  | Ptyp_tuple l -> 
+                    (match l with 
+                       | [] -> failwith "Nothing left"
+                       | a :: al -> 
+                         let mapper a = 
+                          (match a.ptyp_desc with 
+                            | Ptyp_constr ({txt = Longident.Lident "t"}, []) -> true
+                            | Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, []) -> false
+                            | Ptyp_constr ({txt = Longident.Lident n}, x) -> 
+                              if n = ctd.ptype_name.txt 
+                                then true 
+                                 else (match n with 
+                                      | "int64" -> false
+                                      | "int32" -> false
+                                      | "int" -> false
+                                      | "char" -> false
+                                      | "string" -> false
+                                      | "atom" -> false
+                                      | _ -> false)
+                            | Ptyp_constr ({txt = n}, x) -> 
+                              let tn = String.concat "." (Longident.flatten n) in
+                                 (match tn with
+                                    | "int" -> false
+                                    | "int32" -> false
+                                    | "int64" -> false
+                                    | "string" -> false
+                                    | "char" -> false
+                                    | "Atom.t" -> false
+                                    | "atom" -> false
+                                    | x -> false) 
+                            | _ -> false) in mapper a)
+                              | _ -> assert false)
 
+     let mblty c ctd = 
+      (match c.pld_type.ptyp_desc with 
+            | Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, []) -> false
+            | Ptyp_constr ({txt = Longident.Lident n}, x) -> 
+              if n = ctd.ptype_name.txt 
+              then true 
+              else 
+               (match n with 
+                | "int32" -> false
+                | "int64" -> false
+                | "char" -> false
+                | "string" -> false
+                | "atom" -> false
+                | "list" -> 
+                  (match x with 
+                   | [{ptyp_desc = Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, [])}] -> 
+                     false
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int")}, [])}] -> 
+                     false
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int32")}, [])}] -> 
+                     false
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "int64")}, [])}] -> 
+                     false
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "char")}, [])}] -> 
+                     false
+                   | [{ptyp_desc = Ptyp_constr ({txt = (Longident.Lident "string")}, [])}] -> 
+                     false
+                   | [{ptyp_desc = Ptyp_tuple l}] -> 
+                    (match l with 
+                       | [] -> failwith "Nothing left"
+                       | a :: al -> 
+                         let mapper a = 
+                          (match a.ptyp_desc with 
+                            | Ptyp_constr ({txt = Longident.Lident "t"}, []) -> true
+                            | Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, []) -> false
+                            | Ptyp_constr ({txt = Longident.Lident n}, x) -> 
+                              if n = ctd.ptype_name.txt 
+                                then true 
+                                 else (match n with 
+                                      | "int64" -> false
+                                      | "int32" -> false
+                                      | "int" -> false
+                                      | "char" -> false
+                                      | "string" -> false
+                                      | "atom" -> false
+                                      | _ -> false)
+                            | Ptyp_constr ({txt = n}, x) -> 
+                              let tn = String.concat "." (Longident.flatten n) in
+                                 (match tn with
+                                    | "int" -> false
+                                    | "int32" -> false
+                                    | "int64" -> false
+                                    | "string" -> false
+                                    | "char" -> false
+                                    | "Atom.t" -> false
+                                    | "atom" -> false
+                                    | x -> false) 
+                            | _ -> false) in mapper a)
+                            | x -> true)
+                    | x -> true)  
+                  | Ptyp_constr ({txt = t}, x) -> true
+                  | Ptyp_tuple l -> 
+                    (match l with 
+                       | [] -> failwith "Nothing left"
+                       | a :: al -> 
+                         let mapper a = 
+                          (match a.ptyp_desc with 
+                            | Ptyp_constr ({txt = Longident.Lident "t"}, []) -> true
+                            | Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, []) -> false
+                            | Ptyp_constr ({txt = Longident.Lident n}, x) -> 
+                              if n = ctd.ptype_name.txt 
+                                then true 
+                                 else (match n with 
+                                      | "int64" -> false
+                                      | "int32" -> false
+                                      | "int" -> false
+                                      | "char" -> false
+                                      | "string" -> false
+                                      | "atom" -> false
+                                      | _ -> false)
+                            | Ptyp_constr ({txt = n}, x) -> 
+                              let tn = String.concat "." (Longident.flatten n) in
+                                 (match tn with
+                                    | "int" -> false
+                                    | "int32" -> false
+                                    | "int64" -> false
+                                    | "string" -> false
+                                    | "char" -> false
+                                    | "Atom.t" -> false
+                                    | "atom" -> false
+                                    | x -> false) 
+                            | _ -> false) in mapper a)
+                              | _ -> assert false)
+    
 
 let dali_update_adt tds td mn =
   let open Ast_helper in
@@ -389,21 +566,28 @@ let dali_update_adt tds td mn =
           | [] ->
             let a = List.map (fun e -> mn ^ "."^ fst e, evar @@ snd e) @@ List.rev allargns in
             app (evar "@@") [evar "Lwt.return"; record a]
-          | x :: y ->
+          | x :: y -> 
+            let bl = List.map (fun x -> mblty x ctd) l in 
             let argn = snd (fst x) in  
             (*let args' = fst (fst x) in*)
             match (snd x).ptyp_desc with
             | Ptyp_constr ({txt = Longident.Lident n}, _) ->
               let argnp = mkp argn in
               if n = td.ptype_name.txt then 
-              let rr = List.map (fun e -> evar e.pld_name.txt) l in 
+              let rr = List.map (fun e -> evar e.pld_name.txt) l in
+              let rec compare_b_rr rr bl = match (rr,bl) with 
+                                          | ([],[]) -> [] 
+                                          | ([], x) -> []
+                                          | (x, []) -> []
+                                          | (x :: xl, y :: yl) -> if (y = true) then x :: (compare_b_rr xl yl)
+                                                                                else (compare_b_rr xl yl) in 
               (app (evar "List.fold_left") 
                 (List.append [(lam (pvar "m") (lam (pvar "k") 
                                                    (app (evar ">>=") 
                                                          [evar "m" ; 
                                                          (Exp.fun_ Nolabel None (punit()) 
                                                           (constr "link_to_tree" [(evar "k")]))])))] 
-                             [(evar "(Lwt.return())") ; list rr]))
+                             [(evar "(Lwt.return())") ; list (compare_b_rr rr bl)]))
               else
                 let st = find_some_type tds n in
                 (match st with
@@ -418,23 +602,6 @@ let dali_update_adt tds td mn =
         | Some x -> 
           (match x.ptyp_desc with 
           | Ptyp_tuple l -> 
-             let rec get_key_const l = 
-              (match l with
-               | [] -> []
-               | a :: al -> 
-                 (match a.ptyp_desc with 
-                  | Ptyp_constr ({txt = Longident.Lident "t"}, []) -> (a :: get_key_const al)
-                  | Ptyp_constr ({txt = Longident.Lident n}, _) ->
-                    if n = td.ptype_name.txt then 
-                    a ::  (get_key_const al) else 
-                    let st = find_some_type tds n in
-                        (match st with
-                         | Some p -> (a :: (get_key_const al))
-                         | None -> (get_key_const al))
-                  | Ptyp_constr ({txt = Longident.Ldot (Longident.Lident "Atom", "t")}, []) -> 
-                    (a :: (get_key_const al))
-                  | Ptyp_constr ({txt = t}, x) -> (a :: get_key_const al)
-                  | _ -> (get_key_const al))) in 
            let plhs = 
               let rec aux i l =        
                match l with 
@@ -463,7 +630,14 @@ let dali_update_adt tds td mn =
                  let argn = mkarg i in 
                  match a.ptyp_desc with 
                     | Ptyp_constr ({txt = Longident.Lident n}, _) ->
-                        let al' = List.mapi (fun i e -> evar (mkarg i)) (get_key_const l) in 
+                        let rr = List.mapi (fun i e -> evar (mkarg i)) l in 
+                        let bl = List.map (fun x -> mbcty x ctd) l in 
+                        let rec compare_b_rr rr bl = match (rr,bl) with 
+                                          | ([],[]) -> [] 
+                                          | ([], x) -> []
+                                          | (x, []) -> []
+                                          | (x :: xl, y :: yl) -> if (y = true) then x :: (compare_b_rr xl yl)
+                                                                                else (compare_b_rr xl yl) in 
                         if n = td.ptype_name.txt then 
                         (app (evar "List.fold_left") 
                             (List.append [(lam (pvar "m") (lam (pvar "k") 
@@ -471,7 +645,7 @@ let dali_update_adt tds td mn =
                                                          [evar "m" ; 
                                                          (Exp.fun_ Nolabel None (punit()) 
                                                           (constr "link_to_tree" [(evar "k")]))])))] 
-                             [(evar "(Lwt.return())") ; list al'])) else 
+                             [(evar "(Lwt.return())") ; list (compare_b_rr rr bl)])) else 
                         let st = find_some_type tds n in
                         (match st with
                          | Some p ->
@@ -629,7 +803,7 @@ let dali_update_adt tds td mn =
                  let argn = mkarg i in 
                  match a.ptyp_desc with 
                     | Ptyp_constr ({txt = Longident.Lident n}, _) ->
-                        let argnp = mkparg i in  
+                        let argnp = mkparg i in   
                         if n = td.ptype_name.txt then
                         (app (evar ">>=") 
                              [app (evar "add_adt") 
@@ -810,7 +984,7 @@ let dali_read_adt tds td mn =
                     Exp.match_ (evar ak) [(Exp.case plhs prhs)]  
                     else app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
                     | Ptyp_constr ({txt = Longident.Lident "int"}, []) -> 
-                      app (evar "@@") [evar "Lwt.return" ; constr "Int64.of_int" [(evar "a")]] 
+                      app (evar "@@") [evar "Lwt.return" ; constr "Int64.to_int" [(evar "a")]] 
                     | Ptyp_constr ({txt = Longident.Lident "int32"}, []) -> 
                       app (evar "@@") [evar "Lwt.return" ; (evar "a")] 
                     | Ptyp_constr ({txt = Longident.Lident "int64"}, []) -> 
@@ -1011,7 +1185,6 @@ let dali_to_adt tds td mn =
   let open Ast_helper in
   let open Ast_convenience in
   let mkp x = x ^ "'" in
-  let mn = String.concat "." (Longident.flatten mn) in
   let rec find_some_type l tn =
     match l with
     | [] -> None
@@ -1055,7 +1228,7 @@ let dali_to_adt tds td mn =
         let rec aux args allargns =
           match args with
           | [] ->
-            let a = List.map (fun e -> mn ^ "."^ fst e, evar @@ snd e) @@ List.rev allargns in
+            let a = List.map (fun e -> "OM" ^ "."^ fst e, evar @@ snd e) @@ List.rev allargns in
             app (evar "@@") [evar "Lwt.return"; record a]
           | x :: y ->
             let argn = fst x in  
@@ -1133,7 +1306,7 @@ let dali_to_adt tds td mn =
                     Exp.match_ (evar ak) [(Exp.case plhs prhs)] else
                     app (evar "@@") [evar "Lwt.return" ; (evar "t")]
                     | Ptyp_constr ({txt = Longident.Lident "int"}, []) -> 
-                      app (evar "@@") [evar "Lwt.return" ; constr "Int64.to_int" [(evar "a")]]
+                      app (evar "@@") [evar "Lwt.return" ; constr "Int64.to_int" [(evar "t")]]
                     | Ptyp_constr ({txt = Longident.Lident "int32"}, []) -> 
                       app (evar "@@") [evar "Lwt.return" ; (evar "t")]
                     | Ptyp_constr ({txt = Longident.Lident "int64"}, []) -> 
@@ -1163,7 +1336,7 @@ let dali_to_adt tds td mn =
                     | Ptyp_constr ({txt = Longident.Lident "list"},
                      [{ptyp_desc = Ptyp_tuple l}]) -> 
                      app (evar "@@") [evar "Lwt.return" ; (evar "t")]                 
-                    | x -> app (evar "@@") [evar "Lwt.return" ; (evar "a")])
+                    | x -> app (evar "@@") [evar "Lwt.return" ; (evar "t")])
          | None -> assert false) 
     | Ptype_open -> assert false in
   kind_mapper td "t"

@@ -1,0 +1,1 @@
+ocamlfind ocamlopt counter.ml msigs.ml  mvector_list.ml tpce.ml -o tpce -package ezjsonm,irmin-unix,irmin-http,lwt.unix -linkpkg -thread
