@@ -9,7 +9,7 @@ end
 module type MERGEABLE = sig
   type t
   val t: t Irmin.Type.t
-  val to_string : int32 -> string   
+  val to_string : int64 -> string   
   val of_string: string -> t
   val merge3: ancestor:t -> t -> t -> t
 end
@@ -17,7 +17,7 @@ end
 module type RESOLVEABLE = sig
   type t
   val t: t Irmin.Type.t
-  val to_string : int32 -> string   
+  val to_string : int64 -> string   
   val of_string: string -> t
   val resolve: t -> t -> t
   include MERGEABLE with type t := t

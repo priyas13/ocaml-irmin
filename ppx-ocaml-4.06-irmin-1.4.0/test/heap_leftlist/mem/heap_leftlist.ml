@@ -4,7 +4,7 @@ module type ATOM  =
     type t
     val t : t Irmin.Type.t
     val compare : t -> t -> int
-    val to_string : int32 -> string
+    val to_string : int64 -> string
     val of_string : string -> t
   end
 (* Heap is defined as variant type, Empty and T of node where node is a record type consisting of rank of node, root, left
@@ -20,7 +20,7 @@ node and right node *)
 module Make(Atom:ATOM) =
   struct
     type node = {
-      ra: int32 ;
+      ra: int64 ;
       d: Atom.t ;
       l: t ;
       r: t }
@@ -28,12 +28,12 @@ module Make(Atom:ATOM) =
       | E 
       | T of node [@@derive versioned]
     (* Rank of node which is length of the path between the node and the right most leaf *)
-    let rank = function | E -> Int32.of_int 0 | T { ra;_} -> ra
+    let rank = function | E -> Int64.of_int 0 | T { ra;_} -> ra
 
     let makeT x a b =
       if (rank a) >= (rank b)
-      then T { ra = Int32.of_int (Int32.to_int (rank b) + 1); d = x; l = a; r = b }
-      else T { ra = Int32.of_int (Int32.to_int (rank a) + 1); d = x; l = b; r = a }
+      then T { ra = Int64.of_int (Int64.to_int (rank b) + 1); d = x; l = a; r = b }
+      else T { ra = Int64.of_int (Int64.to_int (rank a) + 1); d = x; l = b; r = a }
 
     let empty = E
 
@@ -56,8 +56,8 @@ module Make(Atom:ATOM) =
       else 
         let merged = merge b1 h2 in 
         let rank_left = rank a1 and rank_right = rank merged in 
-        if rank_left >= rank_right then T{ra= Int32.of_int (Int32.to_int (rank_right) +1); d=x; l = a1; r= merged} 
-                                   else T{ra= Int32.of_int (Int32.to_int (rank_left) +1); d=x; l = merged; r= a1}
+        if rank_left >= rank_right then T{ra= Int64.of_int (Int64.to_int (rank_right) +1); d=x; l = a1; r= merged} 
+                                   else T{ra= Int64.of_int (Int64.to_int (rank_left) +1); d=x; l = merged; r= a1}
 
       (* gives the root and then merge the rest *)
     let pop_min =
@@ -82,8 +82,7 @@ module Make(Atom:ATOM) =
     (* insert x h inserts the element in the heap *)
     (* It comapres the element x with all existing element one by one and insert it in appropriate position. 
        Element on its left hand side must be smaller than it and elements on its right must be bigger *)      
-    let insert x h = if (List.mem x (elements h)) then h else
-                     merge (T { ra = Int32.of_int 1; d = x; l = E; r = E }) h
+    let insert x h = merge (T { ra = Int64.of_int 1; d = x; l = E; r = E }) h
     
     (* return the minimum element that will be the head : Time is O(1) *)
     let find_min =
@@ -130,7 +129,7 @@ module Make(Atom:ATOM) =
 
       (* counts empty nodes as 1 *)
   let rec size = function
-    | E -> 1
+    | E -> 0
     | T{ra=r; d=x; l=l'; r=r'} ->
       (size l') + 1 + (size r')
 
@@ -197,13 +196,13 @@ module Make(Atom:ATOM) =
              let (a,b) = go xs ys in 
              let c = Pervasives.compare nx ny in 
              if c = 0 
-              then (Delete ny :: a, b)
+              then (Delete ny :: Delete ny :: a, b)
               else (Delete nx :: a, Insert ny :: b)
            | Insert nx, Delete ny ->
              let (a,b) = go xs ys in 
              let c = Pervasives.compare nx ny in 
              if c = 0 
-              then (a, Delete nx :: b)
+              then (a, Delete nx :: Delete nx :: b)
               else (Insert nx :: a, Delete ny:: b)
           end  in 
         go p q
@@ -268,7 +267,7 @@ module Make(Atom:ATOM) =
       res;
     end 
 
-  let print_int32 i = output_string stdout (string_of_int (Int32.to_int i))
+  let print_int64 i = output_string stdout (string_of_int (Int64.to_int i))
 
   let print_heap f lst =
     let rec print_elements = function

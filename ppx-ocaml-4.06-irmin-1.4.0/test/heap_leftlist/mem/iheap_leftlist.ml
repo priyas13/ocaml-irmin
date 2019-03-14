@@ -15,7 +15,7 @@ open OM
 module K = Irmin.Hash.SHA1
 module G = Git_unix.Mem
   type node = {
-    ra: int32 ;
+    ra: int64 ;
     d: Atom.t ;
     l: K.t ;
     r: K.t }
@@ -31,7 +31,7 @@ module G = Git_unix.Mem
                     fun d ->
                       fun l ->
                         fun r -> { ra; d; l; r }))
-                |+ (field "ra" int32 (fun t -> t.ra)))
+                |+ (field "ra" int64 (fun t -> t.ra)))
                |+ (field "d" Atom.t (fun t -> t.d)))
               |+ (field "l" K.t (fun t -> t.l)))
              |+ (field "r" K.t (fun t -> t.r)))

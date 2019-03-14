@@ -41,14 +41,14 @@ module MkConfig (Vars: sig val root: string end) : Iheap_leftlist.Config = struc
 end
 
 module Atom = struct
-  type t = int32
-  let t = Irmin.Type.int32
-  let compare x y = Int32.to_int @@ Int32.sub x y
-  let to_string = Int32.to_string
-  let of_string = Int32.of_string
+  type t = int64
+  let t = Irmin.Type.int64
+  let compare x y = Int64.to_int @@ Int64.sub x y
+  let to_string = Int64.to_string
+  let of_string = Int64.of_string
 end
 
-module CInit = MkConfig(struct let root = "/tmp/repos/canvas.git" end)
+module CInit = MkConfig(struct let root = "/tmp/repos/heap_leftlist.git" end)
 module MInit = Iheap_leftlist.MakeVersioned(CInit)(Atom)
 module H = Heap_leftlist.Make(Atom)
 module Vpst = MInit.Vpst
@@ -62,7 +62,7 @@ let loop_until_y msg = Vpst.liftLwt @@ U.loop_until_y msg
 
 (* select a random number and insert it in the tree t *)
 let do_an_insert t = 
-  H.insert (Random.int32 900000l) t
+  H.insert (Random.int64 (900000L)) t
 
 (* it uses delete_min which removes the minimum element from t*)
 let do_a_remove t = 
@@ -103,7 +103,7 @@ let loop_iter i (pre: H.t Vpst.t) : H.t Vpst.t =
   let t3 = Sys.time () in
   let _ = flush_all() in
   begin 
-    (* comp_time represents the computation time which is t2 - t1 *)
+    (* comp_time represents the computation time (computation time for the operations) which is t2 - t1 *)
     comp_time := !comp_time +. (t2 -. t1);
     (* sync_time represents the syncing time which is t3 - t2 *)
     sync_time := !sync_time +. (t3 -. t2);

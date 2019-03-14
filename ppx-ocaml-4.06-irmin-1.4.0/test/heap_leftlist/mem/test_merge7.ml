@@ -12,18 +12,18 @@ end
 let _ =
   U.print_header "Heap7";
   let module Atom = struct
-  type t = int32
-  let t = Irmin.Type.int32
-  let compare x y = Int32.to_int @@ Int32.sub x y
-  let to_string = Int32.to_string
-  let of_string = Int32.of_string
+  type t = int64
+  let t = Irmin.Type.int64
+  let compare x y = Int64.to_int @@ Int64.sub x y
+  let to_string = Int64.to_string
+  let of_string = Int64.of_string
 end  in 
 
   let module H = Heap_leftlist.Make(Atom) in
 
-  let original = H.empty |> H.insert (Int32.of_int 2) |> H.insert (Int32.of_int 3)  in 
-  let q1 =  original |> H.insert (Int32.of_int 2)   in 
-  let q2 = original |> H.insert (Int32.of_int 3) in 
+  let original = H.empty |> H.insert (Int64.of_int 2) |> H.insert (Int64.of_int 3)  in 
+  let q1 =  original |> H.insert (Int64.of_int 2)   in 
+  let q2 = original |> H.insert (Int64.of_int 3) in 
   (* Edit seq generation demonstration *)
   let edit_seq_printer = U.string_of_list (H.edit_to_string Atom.to_string) in 
   (* edit seq generation with diff *)
@@ -37,7 +37,7 @@ end  in
     Printf.printf "q' = transformed q: %s\n" (edit_seq_printer q')
   in 
   let m = H.merge3 original q1 q2 in 
-  H.print_heap H.print_int32 m;
-  
+  H.print_heap H.print_int64 m;
+
   print_newline();
   print_float !H.merge_time
