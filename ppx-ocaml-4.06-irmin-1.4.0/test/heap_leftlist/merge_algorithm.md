@@ -21,21 +21,25 @@
       
       case 0 : a1 = a2 => (Edit-distance (T1-a1) (T2-a2)) 
       
-                  (In this case we just care about the rest of the trees except the head
+                  (In this case we just care about the rest of the tree except the head
                    Why? Because if a value smaller was inserted to the forked version it
-                   would have moved to the head. And if it has moved to head then a1 cannot
-                   be equal to a2)
+                   would have moved to the head. But at the head we have the same value as ancestor node 
+                   so no change needed at head.)
+                   
       case 1: a1 < a2 => Delete a1 :: 
-                         (Edit-distance (T1-a1) T2)       
-                 (In this case we know a1 < a2 that means a1 was deleted in T2. If a smaller
-                  element was inserted then that value must have moved to the head that means 
-                  that will lead to a1 > a2, so this case will not be valid. We will deal that
-                  case in case 2 described below.)
+                         (Edit-distance (T1-a1) T2)  
+                         
+                 (In this case we know head of the ancestor tree is less than the head of the 
+                  forked branch. That means the forked branch doesnot contain any value equal to the 
+                  head of the ancestor node. If it would have contained then that would have moved 
+                  to the top. Hence we need to delete the head of ancestor as it is not present 
+                  in the forked branch at this point of time.)
+                  
       case 2: a1 > a2 => Insert a2 ::
-                         (Edit-distance T1 (T2-a2))       
-                 (In this case we know a1 > a2 that means we need to insert a2 and it will take 
-                  the head position as in the new version from ancestor we have a2 as the head. Then 
-                  we calulcate the edit distance between T1 and the rest of the tree of T2(leaving head))
+                         (Edit-distance T1 (T2-a2))   
+                         
+                 (In this case ww know that the head of the ancestor is more than the head of the forked heap
+                  hence, we should insert the head of the ancestor to the forked branch )
                   
 Explanation: The main ideas while calculating the edit distance are:
 
