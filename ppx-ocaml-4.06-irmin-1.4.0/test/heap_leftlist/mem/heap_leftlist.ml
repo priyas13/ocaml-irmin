@@ -129,9 +129,13 @@ module Make(Atom:ATOM) =
 
       (* counts empty nodes as 1 *)
   let rec size = function
-    | E -> 0
+    | E -> 1
     | T{ra=r; d=x; l=l'; r=r'} ->
       (size l') + 1 + (size r')
+
+  let swap_left_right h = function 
+    | E -> E
+    | T{ra=r; d=x; l=l'; r=r'} -> T{ra=r; d=x; l=r'; r=l'}
 
     (* Two types of edits: Insert and Delete *)  
     type edit =
@@ -182,28 +186,38 @@ module Make(Atom:ATOM) =
           begin 
           match x, y with 
            | Insert nx, Insert ny -> 
-             let (a,b) = go xs ys in 
              let c = Pervasives.compare nx ny in 
-             if c = 0 then (a,b)
-                      else (Insert nx :: a, Insert ny :: b)
+             if c = 0 then let (a,b) = go xs ys in 
+                           (a,b)
+                      else if c < 0 then let (a, b) = go xs (y::ys) in 
+                                         (Insert nx :: a, b)
+                                    else let (a, b) = go (x :: xs) (ys) in 
+                                         (a , Insert ny :: b)
            | Delete nx, Delete ny -> 
              let (a,b) = go xs ys in 
              let c = Pervasives.compare nx ny in 
              if c=0 then (a,b)
-             else if c < 0 then (a, Delete ny :: b)
-                           else (Delete ny :: a, b)
+             else if c < 0 then let (a, b) = go xs (y::ys) in 
+                                (Delete nx :: a, b)
+                           else let (a, b) = go (x :: xs) (ys) in 
+                                (a , Delete ny :: b)
            | Delete nx, Insert ny -> 
-             let (a,b) = go xs ys in 
              let c = Pervasives.compare nx ny in 
              if c = 0 
-              then (Delete ny :: Delete ny :: a, b)
-              else (Delete nx :: a, Insert ny :: b)
+              then let (a,b) = go xs ys in (Delete ny :: Delete ny :: a, b)
+              else if c < 0 then let a, b = go xs (y :: ys) in 
+                                 (Delete nx :: a, b)
+                            else let a, b = go (x :: xs) ys in 
+                                 (a, Insert ny :: b)
            | Insert nx, Delete ny ->
-             let (a,b) = go xs ys in 
              let c = Pervasives.compare nx ny in 
              if c = 0 
-              then (a, Delete nx :: Delete nx :: b)
-              else (Insert nx :: a, Delete ny:: b)
+              then let a, b = go xs ys in 
+                   (a, Delete nx :: Delete nx :: b)
+              else if c < 0 then let a, b = go xs (y :: ys) in 
+                                 (Insert nx :: a, b)
+                            else let a, b = go (x :: xs) ys in 
+                                 (a, Delete ny :: b)
           end  in 
         go p q
 
@@ -271,12 +285,13 @@ module Make(Atom:ATOM) =
 
   let print_heap f lst =
     let rec print_elements = function
-      | E -> ()
+      | E -> print_string "empty"
       | T{ra=r; d=n; l=l'; r=r'} -> 
+        print_string "n";
         f n ; 
         print_newline();
         print_elements l'; 
-        print_newline() ;
+        print_newline();
         print_elements r'
     in
     print_string "{";
