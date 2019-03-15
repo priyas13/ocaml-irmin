@@ -71,12 +71,14 @@ P and q are list of edits where edits are of this form
 
   case 0 : p0 = Insert x and q0 = Insert y
        
-           case 01: x = y => Op-transform ps qs         
+           case 01: x = y => Op-transform ps qs 
+           
               (here both the forked branch inserted same element, we have to only take care                                                 of the tail of p and q in that case)
 
            case 02: x < y => 
                    (a,b) = first calculate Op-transform ps (q' :: qs) 
                    Insert nx :: a, b
+                   
               (here we just need to insert all the corresponding 
                changes in each of the forked branch. we will 
                ignore the common element through the case0. 
@@ -86,6 +88,7 @@ P and q are list of edits where edits are of this form
            case 03: x > y => 
                    (a,b) = first calculate Op-transform (p0 :: ps) (qs) 
                    a, Insert ny :: b
+                   
               (here we just need to insert all the corresponding changes in 
                each of the forked branch. we will 
                ignore the common element through the case0. 
@@ -102,6 +105,7 @@ case 1 : p0 = Delete x and q0 = Delete y
       case 12: x < y => 
              (a,b) = first calculate Op-transform ps (q0 :: qs) 
              Delete x :: a, b
+             
         (if x < y that means x is already deleted in q at this point of time 
          and may be in future it will be added. 
          Why? Because always the minimum element is deleted. 
@@ -133,6 +137,7 @@ case 1 : p0 = Delete x and q0 = Delete y
     case 02: x < y => 
              (a,b) = first calculate Op-transform ps (q0 :: qs) 
              Delete x :: a, b
+             
         (Left forked branch is deleting an element so in the right forked branch 
          we need to delete that element. And also that element is smalled than the 
          element being inserted in right fork, so it might be the case that
@@ -142,6 +147,7 @@ case 1 : p0 = Delete x and q0 = Delete y
     case 03: x > y => 
              (a,b) = first calculate Op-transform (p0 :: ps) (qs) 
              a, Insert y :: b
+             
         (Left forked branch is deleting a bigger number and right forked branch 
          is inserting a smaller number, hence we need to add the new inserted 
          element in the left branch and rest we calculate again using any of the rules.)
