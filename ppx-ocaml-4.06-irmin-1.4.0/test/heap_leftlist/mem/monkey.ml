@@ -62,7 +62,7 @@ let loop_until_y msg = Vpst.liftLwt @@ U.loop_until_y msg
 
 (* select a random number and insert it in the tree t *)
 let do_an_insert t = 
-  H.insert (Random.int64 (900000L)) t
+  H.insert (Random.int64 (Int64.max_int)) t
 
 (* it uses delete_min which removes the minimum element from t*)
 let do_a_remove t = 
