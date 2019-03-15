@@ -77,29 +77,37 @@ P and q are list of edits where edits are of this form
            case 02: x < y => 
                    (a,b) = first calculate Op-transform ps (q' :: qs) 
                    Insert nx :: a, b
-              (here we just need to insert all the corresponding changes in each of the forked branch. we will 
-              ignore the common element through the case0. Hence any new inserted element in both the heap will
-              be present in the final list)
+              (here we just need to insert all the corresponding 
+               changes in each of the forked branch. we will 
+               ignore the common element through the case0. 
+               Hence any new inserted element in both the heap will
+               be present in the final list)
 
            case 03: x > y => 
                    (a,b) = first calculate Op-transform (p0 :: ps) (qs) 
                    a, Insert ny :: b
-              (here we just need to insert all the corresponding changes in each of the forked branch. we will 
-              ignore the common element through the case0. Hence any new inserted element in both the heap will
-              be present in the final list. This is similar to the last case. 
+              (here we just need to insert all the corresponding changes in 
+               each of the forked branch. we will 
+               ignore the common element through the case0. 
+               Hence any new inserted element in both the heap will
+               be present in the final list. This is similar to the last case. 
               
 case 1 : p0 = Delete x and q0 = Delete y 
 
       case 10: x = y => Op-tranform ps qs 
 
-       (here both the forked branch deleted same element, hence we just need to focus on the rest of the edit lists)
+       (here both the forked branch deleted same element, 
+        hence we just need to focus on the rest of the edit lists)
 
       case 12: x < y => 
              (a,b) = first calculate Op-transform ps (q0 :: qs) 
              Delete x :: a, b
-        (if x < y that means x is already deleted in q at this point of time and may be in future it will be added. 
-        Why? Because always the minimum element is deleted. As y is minimum element in q at this point of time
-        So we will delete x in the forked q branch as well. And then compare the q with the rest of the p. 
+        (if x < y that means x is already deleted in q at this point of time 
+         and may be in future it will be added. 
+         Why? Because always the minimum element is deleted. 
+         As y is minimum element in q at this point of time
+         So we will delete x in the forked q branch as well. 
+         And then compare the q with the rest of the p. 
 
       case 13: x > y => 
              (a,b) = first calculate Op-transform (p0 :: ps) (qs) 
@@ -111,33 +119,43 @@ case 1 : p0 = Delete x and q0 = Delete y
     case 20: x = y => (Delete y :: Delete y :: a, b)
 
        (Means same element is deleted in one branch and added in another branch, 
-        Hence we need to delete the element in the other branch as element deleted in one branch cannot be present in               the merged value. So we add two deletes. Why? Because this the case where an element is added twice. As we                   allow insertion of the same element more than once we need to delete the minimum element twice. 
+        Hence we need to delete the element in the other branch as element 
+        deleted in one branch cannot be present in the merged value. So we add two deletes. 
+        Why? Because this the case where an element is added twice. 
+        As we allow insertion of the same element more than 
+        once we need to delete the minimum element twice. 
         Example: Suppose ancestor is (3,2,4) where 3 is left and 4 is right. 
         Left forked branch delete 2(2 is the min): (3,4)
         Right forked branch insert 2: (3,2,(4,2,E))
-        As we could see there are two 2's in the right forked branch. Hence we need to do two deletion. 
+        As we could see there are two 2's in the right forked branch. 
+        Hence we need to do two deletion. 
 
     case 02: x < y => 
              (a,b) = first calculate Op-transform ps (q0 :: qs) 
              Delete x :: a, b
-        (Left forked branch is deleting an element so in the right forked branch we need to delete that element. And 
-         also that element is smalled than the element being inserted in right fork, so it might be the case that
+        (Left forked branch is deleting an element so in the right forked branch 
+         we need to delete that element. And also that element is smalled than the 
+         element being inserted in right fork, so it might be the case that
          element is present in right forked branch, hence we delete it.
          Hence we add Delete in p' and then calculate the rest.)
 
     case 03: x > y => 
              (a,b) = first calculate Op-transform (p0 :: ps) (qs) 
              a, Insert y :: b
-        (Left forked branch is deleting a bigger number and right forked branch is inserting a smaller number,
-        hence we need to add the new inserted element in the left branch and rest we calculate again using any of the                 rules.)
+        (Left forked branch is deleting a bigger number and right forked branch 
+         is inserting a smaller number, hence we need to add the new inserted 
+         element in the left branch and rest we calculate again using any of the rules.)
               
 case 3: p0 = Insert x and q0 = Delete y
 
         case 30: x = y => (a, Delete x :: Delete x :: b)
 
              (Means same element is deleted in one branch and added in another branch, 
-              Hence we need to delete the element in the other branch as element deleted in one branch cannot be                           present in the merged value. So we add two deletes.
-              Why? Because this the case where an element is added twice. As we allow insertion of the same element                       more than once we need to delete the minimum element twice. 
+              Hence we need to delete the element in the other branch as element 
+              deleted in one branch cannot be present in the merged value. So we add two deletes.
+              Why? Because this the case where an element is added twice. 
+              As we allow insertion of the same element more than once we need to 
+              delete the minimum element twice. 
               Example: Suppose ancestor is (3,2,4) where 3 is left and 4 is right. 
               Right forked branch delete 2(2 is the min): (3,4)
               Left forked branch insert 2: (3,2,(4,2,E))
@@ -147,15 +165,20 @@ case 3: p0 = Insert x and q0 = Delete y
              (a,b) = first calculate Op-transform ps (q0 :: qs) 
              Insert x :: a, b
 
-              (Left forked branch is deleting an element so in the right forked branch 
-               we need to delete that element. And also that element is smalled than the element being inserted in                          right fork, so it might be the case that element is present in right forked branch, 
-               hence we delete it. Hence we add Delete in p' and then calculate the rest. )
+              (Left forked branch is deleting an element so in the 
+               right forked branch we need to delete that element. 
+               And also that element is smalled than the element being 
+               inserted in right fork, so it might be the case that element 
+               is present in right forked branch, hence we delete it. Hence we add Delete in p' 
+               and then calculate the rest.)
 
         case 03: x > y => 
                    (a,b) = first calculate Op-transform (p0 :: ps) (qs) 
                    a, Delete y :: b
 
-              (Left forked branch is deleting a bigger number and right forked branch is inserting a smaller number,
-              hence we need to add the new inserted element in the left branch and rest we calculate again using any                       of the rules.)
+              (Left forked branch is deleting a bigger number and 
+               right forked branch is inserting a smaller number,
+               hence we need to add the new inserted element in the left 
+               branch and rest we calculate again using any of the rules.)
                       
       
