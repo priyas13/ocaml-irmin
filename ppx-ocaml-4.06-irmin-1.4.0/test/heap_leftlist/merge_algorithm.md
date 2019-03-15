@@ -2,14 +2,22 @@
 
 ## Edit distance: Calculates the edit distance between ancestor and the forked version 
 (Here E stands for empty tree)
-- Base case: E, E => []
 
-- E, T2 => Insert (min T2) :: Edit-distance (E, T2-min)
+- Base case: E, E => 
 
-- T1, E => Delete (min T1) :: Edit-distance (T1-min, E) 
+      []
+
+- E, T2 => 
+
+      Insert (min T2) :: Edit-distance (E, T2-min)
+
+- T1, E => 
+
+      Delete (min T1) :: Edit-distance (T1-min, E) 
 
 - T1, T2 => 
-  a1 = min T1 and a2 = min T2
+
+      (a1 = min T1 and a2 = min T2)
       
       case 0 : a1 = a2 => (Edit-distance (T1-a1) (T2-a2)) 
       
@@ -32,9 +40,11 @@
 Explanation: The main ideas while calculating the edit distance are:
 
 (1) If we see the head of the forked branch is more than the ancestor head that means we need to delete the head of ancestor.Even though if it might be added again in the forked branch, it will always move up. So there is no chance that ancestor head which is less than forked head will be present in somewhere left or right of forked heap. Always the smaller one will be present at the head. That is the reason we add "Delete a1" at the beginning of the edit list.
+
 (2) If we see the head of the forked head is less than the head of the ancestor head that means we need to insert that
     element. Because it means head of ancestor was deleted and added again in the forked branch. So we add "Insert" in the 
     beginning of the edit list.
+    
 (3) My edit list traverses through the end of the heap which is creating merge expensive but it also guarantess correctness. I never failed any test case.
                                                            
 ## Operation Transform: 
@@ -44,23 +54,32 @@ We get (p,q) from the above algorithm and now we calulate (p',q'). P and q are l
     * Delete a
 (Here [] stands for empty list)         (Think in diagonal diamond structure)
 
-- Base case: [], [] => [], []               (nothing changed)
+- Base case: [], [] => 
 
-- p, [] => p, []                            (here p' is equal to p and q is empty)
+       [], []       (nothing changed)
 
-- [], q => [], q                            (here q' is equal to q and p is empty)
+- p, [] => 
+       
+       p, []        (here p' is equal to p and q is empty)
+
+- [], q => 
+
+       [], q        (here q' is equal to q and p is empty)
 
 - p0 :: ps, q0 :: qs => 
 
-case 0 : p0 = Insert x and q0 = Insert y
+  case 0 : p0 = Insert x and q0 = Insert y
+       
            case 01: x = y => Op-transform ps qs         
               (here both the forked branch inserted same element, we have to only take care                                                 of the tail of p and q in that case)
+              
            case 02: x < y => 
                    (a,b) = first calculate Op-transform ps (q' :: qs) 
                    Insert nx :: a, b
               (here we just need to insert all the corresponding changes in each of the forked branch. we will 
               ignore the common element through the case0. Hence any new inserted element in both the heap will
               be present in the final list)
+              
            case 03: x > y => 
                    (a,b) = first calculate Op-transform (p0 :: ps) (qs) 
                    a, Insert ny :: b
