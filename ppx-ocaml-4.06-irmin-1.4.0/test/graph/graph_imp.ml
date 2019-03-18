@@ -1,21 +1,26 @@
 open Printf
-exception Empty
+
 module type ATOM = sig
   type t
   val t: t Irmin.Type.t
-  val to_string : t -> string   
-  val of_string: string -> t
   val compare: t -> t -> int
-  (*include Msigs.RESOLVEABLE with type t := t*)
 end
+
+module In_edge_type = 
+	 struct 
+	 type t = (string * int64)
+	 let t = let open Irmin.Type in pair string int64 
+	 let compare = Pervasives.compare
+	end 
 
 module Make =
   struct
    (* labels for nodes **)
-   type nlabel = char 
+   module OL = Mlist.Make(In_edge_type)
+   type nlabel = string
    
    (* labels for edges *)
-   type elabel = char 
+   type elabel = string
 
    (* node *)
    type node = int64
@@ -37,11 +42,11 @@ module Make =
 
    (* labelled link from a node *)
    (* here label represents the edge label *)
-   type in_edge = (elabel * node) list
+   type in_edge = OL.t
 
    (* labelled link to a node *)
    (* here label represents he edge label *)
-   type out_edge = (elabel * node) list
+   type out_edge = OL.t
 
    (* pair of link to the node, node, label, link from the node 
       node represented by node type, label represented by label type, 
@@ -58,15 +63,22 @@ module Make =
            | E_G 
            | G of (context * t)
 
+    exception Empty
+
    let empty = E_G
 
    let is_empty g = function 
      | E_G -> true 
      | G a -> false 
 
-   (* check whethen node n belongs to a context c or not *)
+   (* check whether node n belongs to a context c or not *)
    let belongs_node_c n = function 
      | (il, a, l, ol) -> if n = a then true else false 
+
+
+   (* get the node referred in the context c *)
+   let get_node c = match c with 
+     | (il, n, l, rl) -> n
    
    (* get the edge directed towards the node n *)
    let get_in_edge = function 
@@ -76,9 +88,15 @@ module Make =
    let get_out_edge = function 
       | (il, n, l, ol) -> ol 
 
-   (* get the node referred in the context c *)
-   let get_node c = match c with 
-     | (il, n, l, rl) -> n
+   let rec get_in_edge_g n g = match g with 
+    | E_G -> []
+    | G(x, xl) -> if (get_node x = n) then get_in_edge x else 
+                   get_in_edge_g n xl
+
+   let rec get_out_edge_g n g = match g with 
+    | E_G -> []
+    | G(x, xl) -> if (get_node x = n) then get_out_edge x else 
+                   get_out_edge_g n xl
 
    (* get the label referred in the context c *)
    let get_label c = match c with 
@@ -94,13 +112,21 @@ module Make =
      | G (x, xl) -> if (get_node x = n) then true else check_node n xl
 
    (* get the context for a node n in the graph *)
-    let rec get_context n = function
+    let rec get_context n g = match g with 
      | E_G -> raise Empty 
      | G (x, xl) -> if (get_node x = n) then x else get_context n xl
 
-    let rec filter_successor n (c:out_edge) = match c with 
+    let rec filter_successor n l (c : out_edge) = match c with 
      | [] -> []
-     | x :: xl -> if ((snd x) = n) then xl else x :: filter_successor n xl
+     | x :: xl -> if (((snd x) = n) && ((fst x) = l)) then xl else x :: filter_successor n l xl
+
+    let rec filter_predecessor n l c = match c with 
+     | [] -> []
+     | x :: xl -> if ((snd x) = n) && ((fst x) = l) then xl else x :: filter_predecessor n l xl
+
+    let rec filter_p_s n c = match c with 
+     | [] -> []
+     | x :: xl -> if ((snd x) = n) then xl else x :: filter_p_s n xl
 
    (* gives the degree of any node n *)
    let rec degree n = function 
@@ -118,6 +144,12 @@ module Make =
    let rec get_nodes_with_label g = match g with 
     | E_G -> []
     | G (x, xl) -> get_node_with_label x :: (get_nodes_with_label xl)
+
+
+   let rec add_context c g = match g with 
+    | E_G -> G(c, E_G)
+    | G (x, xl) -> let x' = add_context c xl in 
+                   G (x, x')
  
 
    (* gives the number of nodes present in the graph *)
@@ -135,31 +167,55 @@ module Make =
     | G (x, xl) -> if (get_node x = n) then List.map (snd) (get_in_edge x) 
                                        else pred n xl
 
+   let rec update_context n c' = function
+    | E_G -> E_G 
+    | G(x, xl) -> if (get_node x) = n 
+                  then G(c', xl) else G(x, (update_context n c' xl))
+
+   let rec update_all_context n = function
+    | E_G -> E_G 
+    | G(x, xl) -> G(((filter_p_s n (get_in_edge x)),
+                   (get_node x),
+                   (get_label x),
+                   (filter_p_s n (get_out_edge x))), update_all_context n xl)
+
+   (* insert node n *)
+   let rec insert_node n l p s = function
+    | E_G -> G ((p, n, l, s), E_G)
+    | G (x, xl) -> (add_context (p,n,l,s) (G(x,xl)))                   
+
    (* insert the edge from v to w with label l *)
    let rec insert_edge v w l = function 
     | E_G -> raise Empty 
-    | G (x, xl) -> if (get_node x = v) then List.append [(l,w)] (get_out_edge x) 
-                                       else insert_edge v w l xl
+    | G (x, xl) -> if (get_node x = v) then G((get_in_edge x,
+    	                                       get_node x,
+    	                                       get_label x,
+                                               List.append [(l,w)] (get_out_edge x)),
+                                               xl) 
+                                       else G(x, insert_edge v w l xl)
+
    (* delete edge from v to w *)
-   let rec delete_edge v w = function 
+   let rec delete_edge v w l = function 
     | E_G -> raise Empty 
     | G (x, xl) -> if (get_node x = v) 
-                   then G (((get_in_edge x), 
-                   	        (get_node x), 
-                   	        (get_label x), 
-                   	        (filter_successor w (get_out_edge x))), xl)
-                   else G (x, (delete_edge v w xl))
+                   then if (List.mem (l,w) (get_out_edge x)) 
+                        then G (((get_in_edge x), 
+                   	             (get_node x), 
+                   	             (get_label x), 
+                   	             (filter_successor w l (get_out_edge x))), xl)
+                        else  let c' = get_context w (G(x, xl)) in 
+                              let c = ((filter_predecessor w l (get_in_edge x)),
+                        	           (get_node c'),
+                        	           (get_label c'),
+                        	           (get_out_edge c')) in 
+                             (update_context w c (G(x,xl)))
+                  else G (x, (delete_edge v w l xl))
     
    (* delete node n *)
    let rec delete_node n = function 
     | E_G -> raise Empty 
-    | G (x, xl) -> if (get_node x = n) then xl 
+    | G (x, xl) -> if (get_node x = n) then (update_all_context n xl)
                                        else delete_node n xl
-
-   (* insert node n *)
-   let rec insert_node n l p s = function
-    | E_G -> G (([], n, l, []), E_G)
-    | G (x, xl) -> G ((p, n, l, s), G(x, xl))
 
    (* check the membership of a context in g *)
    let rec is_mem_G c g = match g with 
@@ -182,15 +238,63 @@ module Make =
     (* get all edges in graph g *)
     let rec get_edges g = match g with 
       | E_G -> []
-      | G (x, y) -> get_edges_in_context x :: get_edges y
+      | G (x, y) -> get_edges_in_context x :: get_edges y 
 
-    (* gives the list of new nodes present in g2 whicg are not
-       present in g1 *)
-    let rec compare_nodes g1 g2 = match (g1, g2) with 
+    let rec get_diff e1 e2 = match (e1, e2) with 
       | [], [] -> []
-      | G(x, xl), G(y,yl) ->if x = y then compare_nodes xl yl 
-                                     else y :: compare_nodes xl yl 
+      | [], _ -> []
+      | _, [] -> e1
+      | x :: xl, y :: yl -> if List.mem x e2 
+                            then get_diff xl e2
+                            else x :: get_diff xl e2
 
+
+    let rec merge2 g1 g2 = match (g1, g2) with 
+     | E_G, E_G -> E_G 
+     | E_G, _ -> g2 
+     | _, E_G -> g1 
+     | G(x, xl), G(y, yl) -> 
+        if (get_node x) = (get_node y) 
+         then if (get_in_edge x) = (get_in_edge y)
+               then if (get_out_edge x) = (get_out_edge y)
+                     then let gl = merge2 xl yl in
+                          G(x, gl)
+                     else begin 
+                          let oe = OL.merge [] (get_out_edge x) (get_out_edge y) in 
+                          G ((get_in_edge x, get_node x, get_label x, oe), merge2 xl yl)
+                          end
+               else begin 
+                    let oi = OL.merge [] (get_in_edge x) (get_in_edge y) in 
+                    let oo = OL.merge [] (get_out_edge x) (get_out_edge y) in 
+                    G ((oi, get_node x, get_label x, oo), merge2 xl yl)
+                    end 
+        else insert_node (get_node x) 
+                         (get_label x) 
+                         (get_in_edge x) 
+                         (get_out_edge y) 
+                         (merge2 xl (G (y, yl)))
+
+    (*let rec merge o g1 g2 = match (o,g1, g2) with 
+      | E_G, E_G, E_G -> E_G
+      | _, E_G, E_G -> E_G 
+      | E_G, _, E_G -> g1 
+      | E_G, E_G, _ -> g2 
+      | E_G, _, _ -> merge2 g1 g2 
+      | _, _, E_G -> merge2 o g1 
+      | _, E_G, _ -> merge2 o g2
+      | G(x1, xl1), G(x2, xl2), G(x3, xl3) ->
+        when x1 = x2 && x2 = x3 then 
+        G(x1, (merge xl1 xl2 xl3))
+      | G(x1, xl1), G(x2, xl2), G(x3, xl3) ->
+        if x1 = x2 then 
+           if x2 = x3 
+           then G(x1, (merge xl1 xl2 xl3))
+           else if *)
+
+
+
+
+                                            
    (* Merging *)
    type edit = 
     | Delete_node of node 
@@ -198,21 +302,27 @@ module Make =
     | Insert_node of node * nlabel * in_edge * out_edge 
     | Insert_edge of node * node * elabel
 
-   let rec edit_distance g1 g2 = match (g1, g2) with 
+ (* let rec edit_distance g1 g2 = match (g1, g2) with 
     | E_G, E_G -> []
-    | E_G, G(x, xl) -> Insert_node (get_node x, get_label x, get_in_edge x, get_out_edge x) :: edit_distance E_G xl 
+    | E_G, G(x, xl) -> Insert_node 
+                       (get_node x, 
+                        get_label x, 
+                        get_in_edge x, 
+                        get_out_edge x) :: edit_distance E_G xl 
     | G(x, xl), E_G -> Delete_node (get_node x) :: edit_distance xl E_G
-    | G(x, xl), G(y, yl) -> 
-      let n = get_nodes G(x, xl) in 
-      let e = get_edges G(x, xl) in 
-      let n' = get_nodes G(y, yl) in 
-      let e' = get_edges G(y, yl) in 
-      if n= n' && e = e' then [] 
-                         else if n < n' then
-                                 let cl = compare_nodes G(x, xl) G(y, yl) in 
-                                 let rec insert_all el = match el in 
-                                    | [] -> []
-                                    | x :: xl -> Insert_node x :: insert_all xl
+    | G(x, xl), G(y, yl) -> if ((get_node x) = (get_node y)) then 
+                             if (get_in_edge x) = (get_in_edge y) 
+                              then if (get_out_edge x) = (get_out_edge y)
+                                      then x :: edit_distance xl yl 
+                                      else begin 
+                                           let dd = get_diff (get_out_edge x) (get_out_edge y) in 
+                                           let di = get_diff (get_out_edge y) (get_out_edge x) in 
+                                           let li = List.map (fun x y -> Insert_edge (fst x) (get_node y) 
+
+
+                                      (get_in_edge x, get_node x, get_label x, get_out_edge x)
+                              else  *)
+     
 
 
 
@@ -221,7 +331,8 @@ module Make =
 
 
 
-   (*let print_int64 i = output_string stdout (string_of_int (Int64.to_int i))
+
+   let print_int64 i = output_string stdout (string_of_int (Int64.to_int i))
 
    let print_list f lst = 
     let rec print_elements = function
@@ -232,30 +343,34 @@ module Make =
     print_string "]"
 
     let print_pair f f' p = 
-     let print_elements = function
+     let rec print_elements = function 
      | (x,y) -> (f x, f' y) in 
      print_string "(";
-     print_elements;
+     print_elements p;
      print_string ")"
 
-   let print_adj_list l = print_list (print_pair (print_char) (print_int64)) l
+   let print_adj_list l = print_list (print_pair (print_string) (print_int64)) l
 
-   let print_c f f' c = 
+   let print_c f f' f'' c = 
      let rec print_elements = function
-      | {a_t= at; n = n'; a_f = af} ->
-         f' at ;
-         f n' ;
-         f' af in 
+      | (p, n, l, s) ->
+         f' p ;
+         f n ;
+         f'' l; 
+         f' s in 
         print_string "}";
-        print_elements;
+        print_elements c;
         print_string "}" 
 
-   let print_graph f g = 
-     let rec print_elements = function 
-       | E_G -> ()
-       | G a -> f a in 
-         print_string "Graph";
-         print_elements*)
+   let rec print_graph g = match g with 
+       | E_G -> print_string "E_G"
+       | G (a, x) -> (print_list (print_pair (print_string) (print_int64)) (get_in_edge a)) ;
+       	              print_int64 (get_node a);
+       	              print_string (get_label a);
+                      (print_list (print_pair (print_string) (print_int64)) (get_out_edge a));
+                      print_string "&"; 
+                      print_graph x
+
 
 
 

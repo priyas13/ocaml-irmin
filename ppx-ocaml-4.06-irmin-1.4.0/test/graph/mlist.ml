@@ -2,8 +2,6 @@ open Printf
 module type ATOM = sig
   type t
   val t: t Irmin.Type.t
-  val to_string : t -> string   
-  val of_string: string -> t
   val compare: t -> t -> int
   (*include Msigs.RESOLVEABLE with type t := t*)
 end
