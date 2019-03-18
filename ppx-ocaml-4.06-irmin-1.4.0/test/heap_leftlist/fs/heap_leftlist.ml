@@ -5,7 +5,7 @@ module type ATOM  =
     val t : t Irmin.Type.t
     val compare : t -> t -> int
     val to_string : int64 -> string
-    val of_string : string -> t
+    val of_string : string -> int64
   end
 (* Heap is defined as variant type, Empty and T of node where node is a record type consisting of rank of node, root, left
 node and right node *)
@@ -20,13 +20,24 @@ node and right node *)
 module Make(Atom:ATOM) =
   struct
     type node = {
-      ra: int64 ;
-      d: Atom.t ;
       l: t ;
-      r: t }
+      d: Atom.t ;
+      r: t ;
+      ra: int64}
     and t =
       | E 
       | T of node [@@derive versioned]
+
+    module OS = Set_imp.Make(Atom)
+
+    let rec t_to_set h = match h with 
+      | E -> OS.Empty 
+      | T {ra =_; d= n; l= E; r= E} -> OS.singleton n
+      | T {ra=_; d= n; l= lt; r=rt} -> 
+        let ls = t_to_set lt in 
+        let rs = t_to_set rt in 
+        OS.union (OS.union (OS.singleton n) ls) rs
+
     (* Rank of node which is length of the path between the node and the right most leaf *)
     let rank = function | E -> Int64.of_int 0 | T { ra;_} -> ra
 
@@ -34,6 +45,7 @@ module Make(Atom:ATOM) =
       if (rank a) >= (rank b)
       then T { ra = Int64.of_int (Int64.to_int (rank b) + 1); d = x; l = a; r = b }
       else T { ra = Int64.of_int (Int64.to_int (rank a) + 1); d = x; l = b; r = a }
+    
 
     let empty = E
 
@@ -83,6 +95,14 @@ module Make(Atom:ATOM) =
     (* It comapres the element x with all existing element one by one and insert it in appropriate position. 
        Element on its left hand side must be smaller than it and elements on its right must be bigger *)      
     let insert x h = merge (T { ra = Int64.of_int 1; d = x; l = E; r = E }) h
+
+    let rec set_to_t s = match s with 
+      | OS.Empty -> E
+      | OS.Node {l= Empty; v = n; r=Empty; h = _} -> insert n E
+      | OS.Node {l=lt; v =n; r=rt; h = _} -> 
+        let lh = set_to_t lt in 
+        let rh = set_to_t rt in 
+        insert n (merge lh rh)
     
     (* return the minimum element that will be the head : Time is O(1) *)
     let find_min =
@@ -133,7 +153,11 @@ module Make(Atom:ATOM) =
     | T{ra=r; d=x; l=l'; r=r'} ->
       (size l') + 1 + (size r')
 
-    (* Two types of edits: Insert and Delete *)  
+  let swap_left_right h = function 
+    | E -> E
+    | T{ra=r; d=x; l=l'; r=r'} -> T{ra=r; d=x; l=r'; r=l'}
+
+    (*(* Two types of edits: Insert and Delete *)  
     type edit =
       | Insert of Atom.t 
       | Delete of Atom.t 
@@ -147,7 +171,6 @@ module Make(Atom:ATOM) =
       | Delete a -> Printf.sprintf "Delete (%s)" (atom_to_string a)
 
 
-  
     let op_diff xt yt =
       let rec heap_diff hx hy =
         match (hx, hy) with
@@ -258,27 +281,30 @@ module Make(Atom:ATOM) =
       function
       | [] -> s
       | (Insert x)::r -> let s' = insert x s in apply s' r
-      | (Delete x)::r -> let s' = (merge (get_leftnode s) (get_rightnode s)) in apply s' r
-          (*let (xx, s') = pop_min s in let _ = assert (x = xx) in apply s' r*)
+      | (Delete x)::r -> let s' = snd(pop_min s) in apply s' r
+          (*let (xx, s') = pop_min s in let _ = assert (x = xx) in apply s' r*)*)
 
     let merge_time = ref 0.0
 
-    let merge3 ~ancestor  l r =
-      let p = op_diff ancestor l in
-      let q = op_diff ancestor r in
-      let (_, q') = op_transform p q in apply l q'
+    let merge3 ~ancestor l r = 
+     let a = t_to_set ancestor in 
+     let ls = t_to_set l in 
+     let rs = t_to_set r in 
+     let ms = OS.merge3 a ls rs in 
+     set_to_t ms 
 
 
   let print_int64 i = output_string stdout (string_of_int (Int64.to_int i))
 
   let print_heap f lst =
     let rec print_elements = function
-      | E -> ()
+      | E -> print_string "empty"
       | T{ra=r; d=n; l=l'; r=r'} -> 
+        print_string "n";
         f n ; 
         print_newline();
         print_elements l'; 
-        print_newline() ;
+        print_newline();
         print_elements r'
     in
     print_string "{";
