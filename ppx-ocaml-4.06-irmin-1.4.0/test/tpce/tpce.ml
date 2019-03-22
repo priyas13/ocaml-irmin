@@ -446,7 +446,7 @@ module TradeTypeTable = Rbmap.Make(Id)(TradeType)
 
 module SettlementTable = Rbmap.Make(Id)(Settlement)
 
-module AccountPermissionTable = Rbmap.Make(IdPair)(AccountPermission)
+module AccountPermissionTable = Rbmap.Make(Id)(AccountPermission)
 
 
 (* db is a database consisting of columns for each type.
@@ -641,6 +641,42 @@ module Select1 = struct
     with Not_found ->
       failwith @@ sprintf "Trade histoty <%s> not found"
         (Id.to_string (x))
+
+    let company_table (x) db =
+    try
+      let t = db.company_table in
+      let res = CompanyTable.find (x) t in
+      (res, db)
+    with Not_found ->
+      failwith @@ sprintf "Company Table <%s> not found"
+        (Id.to_string (x))
+
+  let security_table (x) db =
+    try
+      let t = db.security_table in
+      let res = SecurityTable.find (x) t in
+      (res, db)
+    with Not_found ->
+      failwith @@ sprintf "Security Table <%s> not found"
+        (Id.to_string (x))
+
+    let account_permission_table (x) db =
+    try
+      let t = db.account_permission_table in
+      let res = AccountPermissionTable.find (x) t in
+      (res, db)
+    with Not_found ->
+      failwith @@ sprintf "AP <%s> not found"
+        (Id.to_string (x))
+
+      let tax_rate_table (x) db =
+    try
+      let t = db.tax_rate_table in
+      let res = TaxRateTable.find (x) t in
+      (res, db)
+    with Not_found ->
+      failwith @@ sprintf "AP <%s> not found"
+        (Id.to_string (x))
 end
 
 (* Select selects a list of rows in any particular table *)
@@ -723,6 +759,18 @@ module Insert = struct
     let t = db.trade_history_table in
     let t'= TradeHistoryTable.insert (th.th_t_id) th t in
         ((),{db with trade_history_table=t'})
+
+  let trade_table th db = 
+    let open Trade in
+    let t = db.trade_table in
+    let t'= TradeTable.insert (th.t_id, (th.t_ca_id, (th.tt_id, (th.t_symb)))) th t in
+        ((),{db with trade_table=t'})
+
+    let trade_request_table th db = 
+    let open TradeRequest in
+    let t = db.trade_request_table in
+    let t'= TradeRequestTable.insert (th.tr_t_id, (th.tr_tt_id, (th.tr_b_id, (th.tr_s_symb)))) th t in
+        ((),{db with trade_request_table=t'})
 end 
 
 module Update = struct
@@ -793,6 +841,7 @@ module Temp = struct
 end
  
 open Temp
+open Printf
 (* TRANSACTIONS *)
 
 (* Market-feed Transaction *)
@@ -848,6 +897,9 @@ let rec market_feed_txn lt_s_symb t_price tr_qty type_limit_sell type_limit_buy 
                            let th1 = {th_t_id = x.tr_t_id; th_dts = now_dts} in 
                            Insert.trade_history_table th1) (Txn.return ()) trs 
 
+
+
+
 (* Trade-Update Transaction *)
 (* Process the retrieval of any information requested by any customer or a broker *)
 (* Gives information regarding a particular account, a trade transactions or a security *)
@@ -895,7 +947,8 @@ let rec trade_update_txn job_to_be_done tid tcaid ttid tsymb exec_name start_t e
                                                     (fun st -> {st with se_cash_type = cash_type})) 
                             (Txn.return()) trs'
 else if (job_to_be_done = 3) then 
-     Select.trade_table (fun (_, (tacid, (_, tsymbl))) -> (IdPair.compare (tacid, tsymb) (tcaid, tsymb))) >>= fun trs -> 
+     Select.trade_table (fun (_, (tacid, (_, tsymbl))) -> 
+     (IdPair.compare (tacid, tsymb) (tcaid, tsymb))) >>= fun trs -> 
      let rec filter_trs_time_based trs1 = match (trs1) with
           | [] -> []
           | x :: xl -> if x.t_dts >= start_t && x.t_dts <= end_t 
@@ -910,6 +963,8 @@ else if (job_to_be_done = 3) then
                             Txn.return())
                      (Txn.return()) trs'
     else Txn.return()
+
+
 
 
 (* Trade-cleanup Transaction *)
@@ -928,6 +983,143 @@ let trade_cleanup_txn tid trtid =
                                                   (fun l -> {l with t_dts = now_dts}) >>= fun () ->
                                Delete.trade_request_table (x.tr_t_id, (x.tr_tt_id, x.tr_b_id)))
                  (Txn.return()) trs1
+
+
+
+
+(* Trade-Order Transaction *)
+(* Buy or sell of a trade by a customer or brokage *)
+(* Customer places a request on the brokage house to initiate a trade *)
+let trade_order_txn acctid bid cid coid exec_tax_id symbol tid trade_type_id requested_price trade_qty exec_name = 
+  (* Retrieving the information about customer, customer account and broker who are involved in this trade *)
+  let buy_value = ref (Int64.of_int 0) in 
+  let sell_value = ref (Int64.of_int 0) in 
+  let needed_quantity = ref trade_qty in 
+  let ca = Select1.customer_account_table (acctid, bid, cid) in 
+  Select1.customer_table (cid) >>= fun c ->
+  let ctaxid = c.c_tax_id in 
+  let b = Select1.broker_table (bid) in 
+  (* check on whether the executor tax id matches the customer's tax id or not
+     if it matches then order can be possible else it is not possible *)
+  (* Here exec_tax_id is the tax identifier for the person executing the trade *)
+  (* Also checks in the account permission, whether the executor id is same as 
+     account permission tax id associated with the account acctid *)
+  if (exec_tax_id != ctaxid) then Txn.return()
+    (* Estimating the overall impact of executing the requested trade *)
+    else Select1.account_permission_table (acctid) >>= fun ap ->
+         if (ap.ap_tax_id != exec_tax_id) then Txn.return() else 
+         (* Get information on security involved in the trade 
+            and comapany handling the security *) 
+         Select1.company_table coid >>= fun co ->
+         Select1.security_table (symbol) >>= fun sec ->
+         (* Getting the current market price from the last trade table *)
+         Select1.last_trade_table (symbol) >>= fun lt ->
+         let market_price = lt.lt_price in 
+         (* Getting the trade type which indicates whether the sell is 
+            market type or sell type or limit type *)
+         Select1.trade_type_table (trade_type_id) >>= fun tty ->
+         (* If the trade is market type that means buy or sell the 
+            security immediately at the market price where 
+            the market price is equal to the last traded price for that security *)
+         Select1.holding_summary_table (acctid, symbol) >>= fun hs ->
+         Select.holding_table (fun (htid, (hcaid, hsymb)) ->
+                    IdTriple.compare (htid, (hcaid, hsymb)) (tid, (acctid, symbol))) >>= fun hos ->
+         if (tty.tt_is_market = Int64.of_int 1) then 
+         (* If it is not market order then we need to calculate the price *)
+         (* Modifying the customer's holding to reflect the result of buy or sell trade *)
+         (* if it is sell type means customer is requesting for selling the holdings *)
+         if (tty.tt_is_sell = Int64.of_int 1) (* sell type *)
+           then if (hs.hs_qty > Int64.of_int 0) then
+                (* Calculating the profit or loss based on trading it *)
+                let _ = (List.fold_left 
+                               (fun pre x -> 
+                                pre >>= fun () ->
+                                if (x.h_qty > !needed_quantity) 
+                                 (* This is the case where person have enough security to trade *)
+                                 (* So only a portion of holds will be sold *)
+                                 (* Selling price will depend on the requested price that is the current market price in this case *)
+                                 then begin
+                                      buy_value := Int64.add (!buy_value) (Int64.mul !needed_quantity x.h_price);
+                                      sell_value := Int64.add (!sell_value) (Int64.mul !needed_quantity market_price);
+                                      needed_quantity := Int64.of_int 0;
+                                      Txn.return()
+                                      end 
+                                 else (* All holdings will be sold *)
+                                      begin
+                                      buy_value := Int64.add (!buy_value) (Int64.mul x.h_qty x.h_price);
+                                      sell_value := Int64.add (!sell_value) (Int64.mul x.h_qty market_price);
+                                      needed_quantity := Int64.sub !needed_quantity x.h_qty;
+                                      Txn.return()
+                                      end)
+                                 (Txn.return()) hos) in 
+                  ()
+                                 (* If the needed quantity is still greater than 0 then the person will be liquidatng the 
+                                    current holdings to meet what he wants to buy or sell *)
+           else (* buy *)
+               if (hs.hs_qty < Int64.of_int 0) then 
+               (* Calculating the profit or loss based on trading it *)
+                let _ = (List.fold_left (fun pre x -> pre >>= fun () ->
+                                if (x.h_qty + !needed_quantity < Int64.of_int 0) 
+                                 (* This is the case where person doesn't has enough security 
+                                    so only a portion of this holding would be bought 
+                                    He can only buy at the current market price which depends on the 
+                                    last trade *)
+                                 then begin
+                                      sell_value := Int64.add (!sell_value) (Int64.mul !needed_quantity x.h_price);
+                                      buy_value := Int64.add (!buy_value) (Int64.mul !needed_quantity market_price);
+                                      needed_quantity := Int64.of_int 0;
+                                      Txn.return()
+                                      end 
+                                 else (* All holdings will be bought *)
+                                      begin
+                                      x.h_qty = Int64.of_int (- (Int64.to_int (x.h_qty)));
+                                      sell_value := Int64.add (!sell_value) (Int64.mul x.h_qty x.h_price);
+                                      buy_value := Int64.add (!buy_value) (Int64.mul x.h_qty market_price);
+                                      needed_quantity := Int64.sub !needed_quantity x.h_qty;
+                                      Txn.return()
+                                      end)
+                                 (Txn.return()) hos) in ()
+                 else ();
+            if (sell_value > buy_value) then
+            let _ = (let now_dts = Some (Unix.time()) in
+            (* calculating the tax that can be incurred because of thsi trade *)
+            Select1.tax_rate_table(c.c_tax_id) >>= fun tax ->
+            let tax_amount = Int64.mul (Int64.sub !sell_value !buy_value) tax.tx_rate in 
+            (* Calculating the commission rate and charge *)
+            Select1.commission_rate_table (c.c_tier, (tid, exec_tax_id)) >>= fun comm ->
+            Select1.charge_table (tid) >>= fun ch ->
+            let comm_amount = ((Int64.div (comm.cr_rate) (Int64.of_int 100)) * ((trade_qty) * (market_price))) in 
+            (* Insert a new row for this trade in the trade table *)
+            (* This is a cash type *)
+            let ntid = Random.int64 10000000000L in
+            let new_tr= { t_id = ntid;
+                          t_ca_id = acctid; 
+                          tt_id = trade_type_id;
+                          t_is_cash = true;
+                          t_qty = trade_qty;
+                          t_symb = symbol;
+                          t_exec_name = exec_name;
+                          t_trade_price = market_price;
+                          t_dts = now_dts;
+                          t_chrg = ch.ch_chrg;
+                          t_comm = comm_amount} in 
+            Insert.trade_table new_tr) in Txn.return()
+        else (* limit order *) (* in this case the person waits for specific price *)
+             (* So we add it in the trade request table *)
+           let _ = (let nrtid = Random.int64 10000000000L in
+           let now_dts = Some (Unix.time()) in 
+           let new_treq = {tr_t_id = nrtid;
+                           tr_tt_id = trade_type_id;
+                           tr_b_id = bid;
+                           tr_s_symb = symbol;
+                           tr_qty = trade_qty;
+                           tr_bid_price = requested_price} in 
+           Insert.trade_request_table new_treq >>= fun () ->
+           let new_th = {th_t_id = nrtid;
+                         th_dts = now_dts} in 
+           Insert.trade_history_table new_th) in Txn.return()
+     
+
 
 (* Trade-Result Transaction *)
 (* Stock market trade processing is done through this transaction *)
@@ -1109,105 +1301,6 @@ Update.customer_account_table (fun cakey -> IdTriple.compare cakey (caid, (bid, 
                               (fun ca -> {ca with ca_bal = ca.ca_bal + se_amount}) 
 
 
-(* Market-Feed Transaction *)
-(* Process of tracking the current market activity *)
-(* *)
-
-(* Trade-Update Transaction *)
-(* Process of making minor corrections or update to a set of trades *)
-(* It takes a list of trade ids as argument and information of each trade is returned *)
-
-(* Trade-Cleanup Transaction *)
-(* It is used to cancel any pending or submitted trades from the database *)
-
-(* Trade-Order Transaction *)
-(* The process of buying or selling a security by a customer, broker *)
-(* Allows the person trading to execute buys at current market proce, sell at current market price, or limit buys 
-   or sells at a requested price *)
-(* Acct_id passed as argument is used to retrieve information about customer and broker handling the account *)
-let trade_order_txn acct_id bid cid symbol tid = 
-   (* Selecting the customer and broker associated with the account id *)
-   Select1.customer_account_table (acct_id, bid, cid) >>= fun ca ->
-   Select1.customer_table (cid) >>= fun c ->
-   let ctier = c.c_tier in 
-   Select1.broker_table (bid) >>= fun b ->
-   (* Impact of executing the requested trade *)
-   (* Last Trade contains one row for each security with the latest trade price *)
-   (* Here we are doing trading of security with label symbol *)
-   Select1.last_trade_table (symbol) >>= fun lt ->
-   let market_price = lt.lt_price in 
-   Select1.trade_table (tid, cid) >>= fun t ->
-   let tqty = t.t_qty in 
-   let needed_quantity = ref tqty in 
-   let buy_value = ref (Int64.of_int 0) in 
-   let sell_value = ref (Int64.of_int 0) in 
-   Select1.holding_summary_table (acct_id, symbol) >>= fun hs ->
-    if (t.t_is_sell = true)
-          then if (hs.hs_qty > Int64.of_int 0)
-                then Select.holding_table (fun (htid, (hcaid, hsymb)) ->
-                        IdTriple.compare (htid, (hcaid, hsymb)) (tid, (acct_id, symbol))) >>= fun hos ->
-                     let rec realize_selling hos = match hos with 
-                       | [] -> ()
-                       | x :: xl ->
-                          if (x.h_qty > !needed_quantity)
-                           (* Only a portion of this holding is sold as a result of the trade *)
-                           then  begin 
-                                 buy_value := Int64.add (!buy_value) (Int64.mul !needed_quantity x.h_price);
-                                 sell_value := !sell_value + (!needed_quantity * market_price);
-                                 needed_quantity := Int64.of_int 0;
-                                 realize_selling xl 
-                                 end 
-                            (* All holdings are sold *)
-                            else begin 
-                                 buy_value := Int64.mul (x.h_qty) (x.h_price);
-                                 sell_value := Int64.mul (x.h_qty) market_price;
-                                 needed_quantity := Int64.sub !needed_quantity x.h_qty;
-                                 realize_selling xl
-                                 end  in 
-                      realize_selling hos;
-                      Txn.return ()  
-                else (* if it is a buy transaction *)
-                     if (hs.hs_qty < Int64.of_int 0)
-                       then Select.holding_table (fun (htid, (hcaid, hsymb)) ->
-                        IdTriple.compare (htid, (hcaid, hsymb)) (tid, (acct_id, symbol))) >>= fun hos ->
-                        let rec realize_buying hos = match hos with 
-                          | [] -> ()
-                          | x :: xl ->
-                             if (x.h_qty + !needed_qunatity < 0)
-                             (* Only a portion of this holding will be bought back *)
-                              then begin
-                                   sell_value := Int64.add !sell_value (Int64.mul !needed_quantity x.h_price);
-                                   buy_value := !buy_value + (!needed_quantity * market_price);
-                                   needed_quantity := Int64.of_int 0 ;
-                                   realize_buying xl
-                                   end 
-                              else (* All holdings would be covered (bought back) *)
-                                   begin
-                                   x.h_qty = Int64.of_int (-Int64.to_int x.h_qty);
-                                   sell_value := Int64.add (!sell_value) (Int64.mul !needed_quantity x.h_price);
-                                   buy_value := !buy_value + (!needed_quantity * market_price);
-                                   needed_quantity := !needed_quantity - x.h_qty 
-                                   realize_buying xl
-                                   end  in 
-                        realize_buying hos;
-                        Txn.return() ;
-
-; Select1.commission_rate_table (ctier, tid) >>= fun cr ->
-  Select1.charge_table (tid, ctier) >>= fun chrg ->
-  let chrg_amount = chrg.ch_chrg in 
-  let comm_amount = ((Int64.div (cr.cr_rate) (Int64.of_int 100)) * ((tqty) * (tprice))) in 
-Update.trade_table (fun tkey -> IdPair.compare tkey (tid, caid))
-                   (fun t -> {t with t_comm = comm_amount}) ;
-Insert.trade_history_table {th_t_id = tid; th_st_id = true};
-Update.broker_table (fun brid -> Id.compare brid bid)
-                    (fun b -> {b with b_num_trades = b.b_num_trades + Int64.of_int 1;
-                                      b_comm = b.b_comm + comm_amount}) ;
-let se_amount =  
-if (t.t_is_sell = true)  
-then (((tqty) * (tprice)) - (ccharge) - (comm_amount)) 
-else Int64.of_int (- Int64.to_int ((tqty * tprice) - ccharge - comm_amount)) in 
-Update.customer_account_table (fun cakey -> IdTriple.compare cakey (caid, (bid, cid)))
-                              (fun ca -> {ca with ca_bal = ca.ca_bal + se_amount}) 
 
 
 
