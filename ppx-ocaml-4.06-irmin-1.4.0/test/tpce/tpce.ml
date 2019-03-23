@@ -72,14 +72,6 @@ type t = {ca_id : id;
     {lca with ca_bal = (counter_merge lca.ca_bal y1 y2)}
 end 
 
-(* Contains information about tax rate *)
-module CustomerTaxRate = struct 
-type t = {cx_tx_id : id; 
-          cx_c_id: id}
-let merge ~ancestor:lca v1 v2  =  
-    failwith "account_permission is immutable"
-end 
-
 (* Information about customer's holdings *)
 (* h_t_id is the trade identifier for the trade *)
 (* h_ca_id is the customer account identifier *)
@@ -406,8 +398,6 @@ module CustomerTable = Rbmap.Make(Id)(Customer)
 (* Each row corresponds to account associated with each customer *)
 module CustomerAccountTable = Rbmap.Make(IdTriple)(CustomerAccount)
 
-module CustomerTaxRateTable = Rbmap.Make(IdPair)(CustomerTaxRate)
-
 module HoldingTable = Rbmap.Make(IdTriple)(Holding)
 
 module HoldingHistoryTable = Rbmap.Make(IdPair)(HoldingHistory)
@@ -468,7 +458,6 @@ type db = {customer_table: CustomerTable.t;
            settlement_table : SettlementTable.t;
            exchange_table : ExchangeTable.t;
            company_table : CompanyTable.t;
-           customer_tax_rate_table: CustomerTaxRateTable.t;
            security_table : SecurityTable.t;
            account_permission_table : AccountPermissionTable.t}
 
@@ -485,7 +474,6 @@ open Charge
 open TradeHistory
 open TradeRequest
 open Exchange 
-open CustomerTaxRate
 open Company
 open Settlement 
 open TaxRate 
@@ -782,6 +770,18 @@ module Insert = struct
     let t = db.settlement_table in
     let t'= SettlementTable.insert (th.se_t_id) th t in
         ((),{db with settlement_table=t'})
+
+  let customer_table th db = 
+    let open Customer in
+    let t = db.customer_table in
+    let t'= CustomerTable.insert (th.c_id) th t in
+        ((),{db with customer_table=t'})
+
+   let customer_account_table th db = 
+    let open CustomerAccount in
+    let t = db.customer_account_table in
+    let t'= CustomerAccountTable.insert (th.ca_id, (th.ca_b_id, th.ca_c_id)) th t in
+        ((),{db with customer_account_table=t'})
 end 
 
 module Update = struct
@@ -1000,6 +1000,7 @@ let trade_cleanup_txn tid trtid =
 
 (* Trade-Order Transaction *)
 (* Buy or sell of a trade by a customer or brokage *)
+(* Allows the person trading to execute buys or sells at current market price *)
 (* Customer places a request on the brokage house to initiate a trade *)
 let trade_order_txn acctid bid cid coid exec_tax_id symbol tid trade_type_id requested_price trade_qty exec_name = 
   (* Retrieving the information about customer, customer account and broker who are involved in this trade *)
@@ -1133,6 +1134,7 @@ let trade_order_txn acctid bid cid coid exec_tax_id symbol tid trade_type_id req
 
 
 (* Trade-Result Transaction *)
+(* Completing a stock market trade *)
 (* Stock market trade processing is done through this transaction *)
 (* Brokage house receiving information from the market exchange about the 
    final confirmation and price of the trade *)

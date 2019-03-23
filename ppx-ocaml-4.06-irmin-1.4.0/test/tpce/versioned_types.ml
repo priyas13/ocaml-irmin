@@ -180,32 +180,6 @@ struct
     include MakeVersionedDS(Config)(OM)(AO_value)
   end
 
-  
-  module ICustomerTaxRate : IRMIN_DATA_STRUCTURE
-    with type adt = Tpce.CustomerTaxRate.t =
-    struct 
-    module OM = Tpce.CustomerTaxRate
-
-    module AO_value : Irmin.Contents.Conv with type t = OM.t = 
-    struct
-      type adt = OM.t
-      type t = OM.t
-       
-      let t =
-        let open Irmin.Type in 
-        let open Tpce.CustomerTaxRate in
-        record "t" (fun cx_tx_id cx_c_id -> {cx_tx_id; cx_c_id})
-        |+ field "cx_tx_id" id (fun t -> t.cx_tx_id)
-        |+ field "cx_c_id" id (fun t -> t.cx_c_id)
-        |> sealr
-
-      include Serialization(struct 
-                              type t = adt
-                              let t = t 
-                            end)
-    end
-    include MakeVersionedDS(Config)(OM)(AO_value)
-  end
 
     module IHolding : IRMIN_DATA_STRUCTURE
     with type adt = Tpce.Holding.t =

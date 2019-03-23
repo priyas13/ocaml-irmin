@@ -26,8 +26,6 @@ module ICustomerTable = Irbmap.MakeVersioned(Config)(Id)(Customer)(CustomerTable
 
 module ICustomerAccountTable = Irbmap.MakeVersioned(Config)(IdTriple)(CustomerAccount)(CustomerAccountTable)(ICustomerAccount)
 
-module ICustomerTaxRateTable = Irbmap.MakeVersioned(Config)(IdPair)(CustomerTaxRate)(CustomerTaxRateTable)(ICustomerTaxRate)
-
 module IHoldingTable = Irbmap.MakeVersioned(Config)(IdTriple)(Holding)(HoldingTable)(IHolding)
 
 module IHoldingHistoryTable = Irbmap.MakeVersioned(Config)(IdPair)(HoldingHistory)(HoldingHistoryTable)(IHoldingHistory)
@@ -79,7 +77,6 @@ type madt = {customer_table: ICustomerTable.t;
            settlement_table : ISettlementTable.t;
            exchange_table : IExchangeTable.t;
            company_table : ICompanyTable.t;
-           customer_tax_rate_table: ICustomerTaxRateTable.t;
            security_table : ISecurityTable.t;
            account_permission_table : IAccountPermissionTable.t}
 
@@ -102,7 +99,6 @@ type madt = {customer_table: ICustomerTable.t;
     | ISettlementTable of ISettlementTable.t
     | IExchangeTable of IExchangeTable.t
     | ICompanyTable of ICompanyTable.t
-    | ICustomerTaxRateTable of ICustomerTaxRateTable.t
     | ISecurityTable of ISecurityTable.t
     | IAccountPermissionTable of IAccountPermissionTable.t
 
@@ -129,7 +125,6 @@ type madt = {customer_table: ICustomerTable.t;
            settlement_table
            exchange_table
            company_table
-           customer_tax_rate_table
            security_table
            account_permission_table -> 
       {customer_table; 
@@ -149,7 +144,6 @@ type madt = {customer_table: ICustomerTable.t;
            settlement_table;
            exchange_table;
            company_table;
-           customer_tax_rate_table;
            security_table;
            account_permission_table})
     |+ field "customer_table" ICustomerTable.t 
@@ -186,8 +180,6 @@ type madt = {customer_table: ICustomerTable.t;
               (fun t -> t.exchange_table)
     |+ field "company_table" ICompanyTable.t
               (fun t -> t.company_table)
-    |+ field "customer_tax_rate_table" ICustomerTaxRateTable.t
-              (fun t -> t.customer_tax_rate_table)
     |+ field "security_table" ISecurityTable.t
               (fun t -> t.security_table)
     |+ field "account_permission_table" IAccountPermissionTable.t
@@ -196,7 +188,7 @@ type madt = {customer_table: ICustomerTable.t;
 
   let (t: t Irmin.Type.t) = 
     let open Irmin.Type in
-    variant "t" (fun db c ca h hh ch com hs b t lt th tr tt tx se ex co ctx s ap -> function
+    variant "t" (fun db c ca h hh ch com hs b t lt th tr tt tx se ex co s ap -> function
         | DB a  -> db a
         | ICustomerTable a -> c a
         | ICustomerAccountTable a -> ca a 
@@ -215,7 +207,6 @@ type madt = {customer_table: ICustomerTable.t;
         | ISettlementTable a -> se a 
         | IExchangeTable a -> ex a 
         | ICompanyTable a -> co a 
-        | ICustomerTaxRateTable a -> ctx a 
         | ISecurityTable a -> s a 
         | IAccountPermissionTable a -> ap a)
     |~ case1 "DB" madt (fun x -> DB x)
@@ -236,7 +227,6 @@ type madt = {customer_table: ICustomerTable.t;
     |~ case1 "ISettlementTable" ISettlementTable.t (fun x -> ISettlementTable x)
     |~ case1 "IExchangeTable" IExchangeTable.t (fun x -> IExchangeTable x)
     |~ case1 "ICompanyTable" ICompanyTable.t (fun x -> ICompanyTable x)
-    |~ case1 "ICustomerTaxRateTable" ICustomerTaxRateTable.t (fun x -> ICustomerTaxRateTable x)
     |~ case1 "ISecurityTable" ISecurityTable.t (fun x -> ISecurityTable x)
     |~ case1 "IAccountPermissionTable" IAccountPermissionTable.t (fun x -> IAccountPermissionTable x)
     |> sealv
@@ -269,7 +259,6 @@ type madt = {customer_table: ICustomerTable.t;
   module type ISETTLEMENT_TREE = TAG_TREE with type value=ISettlementTable.t
   module type IEXCHANGE_TREE = TAG_TREE with type value=IExchangeTable.t
   module type ICOMPANY_TREE = TAG_TREE with type value=ICompanyTable.t
-  module type ICUSTOMERTAXRATE_TREE = TAG_TREE with type value=ICustomerTaxRateTable.t
   module type ISECURITY_TREE = TAG_TREE with type value=ISecurityTable.t
   module type IACCOUNTPERMISSION_TREE = TAG_TREE with type value=IAccountPermissionTable.t
   module type IBROKER_TREE = TAG_TREE with type value=IBrokerTable.t
@@ -510,17 +499,6 @@ type madt = {customer_table: ICustomerTable.t;
           let _ = printf "commission table added\n" in
           let _ = flush_all() in 
 
-            let ictx_tree = transform_tree (module T) 
-                           (module ICustomerTaxRateTable)
-                           (fun iwt -> ICustomerTaxRateTable iwt) in
-          let module ICustomerTaxRateTree = 
-              (val ictx_tree : ICUSTOMERTAXRATE_TREE with type t=T.t 
-                                               and type tag=T.tag) in
-          of_vadt (module ICustomerTaxRateTable) (module ICustomerTaxRateTree)
-                  adt.customer_tax_rate_table >>= fun icustomertaxrate_table ->
-          let _ = printf "customer tax table added\n" in
-          let _ = flush_all() in 
-
             let ith_tree = transform_tree (module T) 
                            (module ITradeHistoryTable)
                            (fun iwt -> ITradeHistoryTable iwt) in
@@ -594,7 +572,6 @@ type madt = {customer_table: ICustomerTable.t;
                         settlement_table=isettlement_table;
                         exchange_table=iexchange_table;
                         company_table=icompany_table;
-                        customer_tax_rate_table=icustomertaxrate_table;
                         security_table=isecurity_table;
                         account_permission_table=iaccountpermission_table;}
         end
@@ -618,7 +595,6 @@ type madt = {customer_table: ICustomerTable.t;
       ISettlementTable.to_adt t.settlement_table >>= fun settlement_table ->
       IExchangeTable.to_adt t.exchange_table >>= fun exchange_table ->
       ICompanyTable.to_adt t.company_table >>= fun company_table ->
-      ICustomerTaxRateTable.to_adt t.customer_tax_rate_table >>= fun customertaxrate_table ->
       ISecurityTable.to_adt t.security_table >>= fun security_table ->
       IAccountPermissionTable.to_adt t.account_permission_table >>= fun accountpermission_table ->
       let open Tpce in
@@ -639,7 +615,6 @@ type madt = {customer_table: ICustomerTable.t;
                      settlement_table=settlement_table;
                      exchange_table=exchange_table;
                      company_table=company_table;
-                     customer_tax_rate_table=customertaxrate_table;
                      security_table=security_table;
                      account_permission_table=accountpermission_table;}
 
