@@ -732,6 +732,11 @@ module Select = struct
     let res = SecurityTable.select sigf t in
     (res, db)
 
+  let commission_rate_table sigf db =
+    let t = db.commission_rate_table in
+    let res = CommissionRateTable.select sigf t in
+    (res, db)
+
 end
 
 module Insert = struct
@@ -771,6 +776,12 @@ module Insert = struct
     let t = db.trade_request_table in
     let t'= TradeRequestTable.insert (th.tr_t_id, (th.tr_tt_id, (th.tr_b_id, (th.tr_s_symb)))) th t in
         ((),{db with trade_request_table=t'})
+
+  let settlement_table th db = 
+    let open Settlement in
+    let t = db.settlement_table in
+    let t'= SettlementTable.insert (th.se_t_id) th t in
+        ((),{db with settlement_table=t'})
 end 
 
 module Update = struct
@@ -813,9 +824,9 @@ let settlement_table sigf updf db =
 end 
 
 module Delete = struct
-  let holding_table (h_t_id, h_ca_id) db =
+  let holding_table (h_t_id, h_ca_id, h_symb) db =
     let t = db.holding_table in
-    let t' = HoldingTable.remove (h_t_id, h_ca_id) t in
+    let t' = HoldingTable.remove (h_t_id, (h_ca_id, h_symb)) t in
     ((), {db with holding_table=t'})
 
     let holding_summary_table (hs_ca_id, hs_s_symb) db =
@@ -1132,6 +1143,7 @@ let trade_order_txn acctid bid cid coid exec_tax_id symbol tid trade_type_id req
 (* Symbol represents the security symbol *)
 
 let trade_result_txn tid caid ttid cid bid symbol trade_price = 
+  (* Getting information on the trade and the customer's account *)
   (* Selecting the trade with id tid in the trade table *)
   Select1.trade_table (tid,caid, ttid, symbol) >>= fun t ->
   (* caid is the customer account id *)
@@ -1142,6 +1154,9 @@ let trade_result_txn tid caid ttid cid bid symbol trade_price =
   let tprice = t.t_trade_price in
   (* tchrg is the trade charge *)
   let tchrg = t.t_chrg in
+   let buy_value = ref (Int64.of_int 0) in 
+  let sell_value = ref (Int64.of_int 0) in 
+  let needed_quantity = ref tqty in
   Select1.trade_type_table (ttid) >>= fun tt ->
   (* Selecting the history summary for the customer account *)
   Select1.holding_summary_table (caid, symbol) >>= fun hs ->
@@ -1153,123 +1168,123 @@ let trade_result_txn tid caid ttid cid bid symbol trade_price =
   Select1.customer_table cid >>= fun c ->
   let ctier = c.c_tier in
   Select1.charge_table tid >>= fun ch ->
+  Select1.tax_rate_table(c.c_tax_id) >>= fun tax ->
+  Select.commission_rate_table (fun (x,(y, z)) -> 
+                             IdTriple.compare (x,(y, z)) (c.c_tier, (tid, c.c_tax_id))) >>= fun cr ->
+  let rec filter_comm cr = match cr with 
+   | x :: xl -> if x.cr_from_qty <= tqty && x.cr_to_qty >= tqty then x else filter_comm xl in 
   let ccharge = ch.ch_chrg in 
+                  Select.holding_table (fun (htid, (hcaid, hsymb)) ->
+                        IdTriple.compare (htid, (hcaid, hsymb)) (tid, (caid, symbol))) >>= fun hos -> 
   (* Modifying the customer's holding to reflect the result of buy or sell trade *)
   (* if it is sell type means customer is requesting for selling the holdings *)
   if (tt.tt_is_sell = Int64.of_int 1) (* sell type *)
   then 
        if (hs.hs_qty = Int64.of_int 0) (* No prior holding exists so we need to insert one *)
-       then Insert.holding_summary_table {hs_ca_id = caid; hs_s_symb = symbol; hs_qty = Int64.of_int 0-tqty} 
+       then (let hs' = {hs_ca_id = caid; hs_s_symb = symbol; hs_qty = Int64.of_int 0-tqty} in 
+            Insert.holding_summary_table hs')
        else if (hs.hs_qty != tqty) (* prior holding exists with the customer *)
             then 
-                 Update.holding_summary_table
+                 let _ = Update.holding_summary_table
                       (fun (hscaid, hsssymb) -> IdPair.compare (hscaid, hsssymb) (caid, symbol))
-                      (fun hsi -> {hsi with hs_qty = hs.hs_qty - tqty}) 
+                      (fun hsi -> {hsi with hs_qty = hs.hs_qty - tqty}) in Txn.return()
             else if (hs.hs_qty > Int64.of_int 0) 
                  then 
-                    Select.holding_table (fun (htid, (hcaid, hsymb)) ->
-                        IdTriple.compare (htid, (hcaid, hsymb)) (tid, (caid, symbol))) >>= fun hos ->
-                    let needed_quantity = ref tqty in 
-                    let buy_value = ref (Int64.of_int 0) in 
-                    let sell_value = ref (Int64.of_int 0) in 
-                    List.fold_left  
+                    let _ = List.fold_left  
                             (fun pre x -> pre >>= fun () ->
                               if (x.h_qty) < tqty then 
-                                Insert.holding_history_table {hh_h_t_id = x.h_t_id; 
-                                                              hh_t_id = tid; 
-                                                              hh_b_qty = x.h_qty; 
-                                                              hh_a_qty = x.h_qty - tqty} >>= fun _ ->
+                                let h' = {hh_h_t_id = x.h_t_id; 
+                                          hh_t_id = tid; 
+                                          hh_b_qty = x.h_qty; 
+                                          hh_a_qty = x.h_qty - !needed_quantity} in 
                                 Update.holding_table  (fun ckey -> IdTriple.compare ckey
                                                        (tid, (caid, symbol))) 
                                                        (fun h -> {h_t_id = x.h_t_id; 
                                                         h_ca_id = x.h_ca_id; 
                                                         h_s_symb = x.h_s_symb; 
                                                         h_price = x.h_price; 
-                                                        h_qty = x.h_qty - tqty}) >>= fun _ ->
+                                                        h_qty = x.h_qty - !needed_quantity}) >>= fun () ->
+                                Insert.holding_history_table h' ;
                                 buy_value := Int64.add !buy_value (Int64.mul !needed_quantity (x.h_price));
                                 sell_value := Int64.add !sell_value (Int64.mul !needed_quantity (trade_price));
                                 needed_quantity := Int64.of_int 0;
-                                Txn.return()
-                            else 
-                                  Insert.holding_history_table {hh_h_t_id = x.h_t_id; 
-                                                                hh_t_id = tid; 
-                                                                hh_b_qty = x.h_qty; 
-                                                                hh_a_qty = Int64.of_int 0}>>= fun () ->
-                                 Delete.holding_table (x.h_t_id, (x.h_ca_id, x.h_s_symb)) >>= fun () ->
+                                Txn.return() 
+                              else  (* Selling all security held *)
+                                let h'= {hh_h_t_id = x.h_t_id; 
+                                           hh_t_id = tid; 
+                                           hh_b_qty = x.h_qty; 
+                                           hh_a_qty = Int64.of_int 0} in 
+                                 Insert.holding_history_table h' ;
+                                 Delete.holding_table (x.h_t_id, x.h_ca_id, x.h_s_symb) >>= fun () ->
                                  buy_value := Int64.add !buy_value (Int64.mul (x.h_qty) (x.h_price));
                                  sell_value := Int64.add !sell_value (Int64.mul (x.h_qty) (trade_price));
                                  needed_quantity := (!needed_quantity - x.h_qty);
                                  Txn.return())
-                                 (Txn.return()) hos
-                            ; if (!needed_quantity > Int64.of_int 0) 
+                                 (Txn.return()) hos in () 
+                    ; if (!needed_quantity > Int64.of_int 0) (*sell short*)
                                     then 
-                                         Insert.holding_history_table {hh_h_t_id = tid; 
+                                         (Insert.holding_history_table {hh_h_t_id = tid; 
                                                                        hh_t_id = tid; 
                                                                        hh_b_qty = Int64.of_int 0; 
-                                                                       hh_a_qty = Int64.of_int (- (Int64.to_int !needed_quantity))} >>= fun () ->
+                                                                       hh_a_qty = Int64.of_int (- (Int64.to_int !needed_quantity))} ;
                                          Insert.holding_table {h_t_id = tid; 
                                                                h_ca_id = caid; 
                                                                h_s_symb = symbol; 
                                                                h_price = tprice; 
-                                                               h_qty = Int64.of_int (- (Int64.to_int !needed_quantity))} >>= fun () -> 
-                    Txn.return()
+                                                               h_qty = Int64.of_int (- (Int64.to_int !needed_quantity))})
+                                    else Txn.return()
                    else if (hs.hs_qty = tqty) 
                       then 
-                           Delete.holding_summary_table (caid, symbol) >>= fun () ->
-                           Txn.return()
+                           Delete.holding_summary_table (caid, symbol) 
                       else Txn.return()
-                  else Txn.return()
+
     else (* buy type *)  
-      if (hs.hs_qty = Int64.of_int 0) (* No prior holding exists so we need to insert one *)
+    
+    if (hs.hs_qty = Int64.of_int 0) (* No prior holding exists so we need to insert one *)
        then  let hsi = {hs_ca_id = caid; hs_s_symb = symbol; hs_qty = tqty} in 
              Insert.holding_summary_table hsi 
        else if ((Int64.of_int (- (Int64.to_int hs.hs_qty))) != tqty) (* prior holding exists with the customer *)
             then 
                  Update.holding_summary_table
                       (fun (hscaid, hsssymb) -> IdPair.compare (hscaid, hsssymb) (caid, symbol))
-                      (fun hsi -> {hsi with hs_qty = hs.hs_qty + tqty})  
-            else if (hs.hs_qty < Int64.of_int 0) 
-                 then 
-                     Select.holding_table (fun (htid, (hcaid, hsymb)) ->
-                        IdTriple.compare (htid, (hcaid, hsymb)) (tid, (caid, symbol))) >>= fun hos ->
-                     let needed_quantity = ref tqty in 
-                    let buy_value = ref (Int64.of_int 0) in 
-                    let sell_value = ref (Int64.of_int 0) in  
-                     List.fold_left (fun pre x -> pre >>= fun () ->
-                                      if (x.h_qty + !needed_quantity) < Int64.of_int 0 then
-                                      begin 
-                                      Insert.holding_history_table {hh_h_t_id = x.h_t_id; 
-                                                                    hh_t_id = tid; 
-                                                                    hh_b_qty = x.h_qty; 
-                                                                    hh_a_qty = x.h_qty + tqty} >>= fun () ->
-                                      Update.holding_table (fun ckey -> IdTriple.compare ckey
-                                                   (tid, (caid, symbol))) 
-                                                   (fun h -> {h_t_id = x.h_t_id; 
-                                                              h_ca_id = x.h_ca_id; 
-                                                              h_s_symb = x.h_s_symb; 
-                                                              h_price = x.h_price; 
-                                                              h_qty = x.h_qty + tqty}) >>= fun () ->
-                                      sell_value := Int64.add !sell_value (Int64.mul !needed_quantity (x.h_price));
-                                      buy_value := Int64.add !buy_value (Int64.mul !needed_quantity (trade_price));
-                                      needed_quantity := Int64.of_int 0
-                                      end
+                      (fun hsi -> {hsi with hs_qty = hs.hs_qty + tqty}) 
+            else if (hs.hs_qty < Int64.of_int 0) (* short cover *)
+                 then let y  = (List.fold_left
+                                (fun pre x -> 
+                                   pre >>= fun () ->
+                                      if ((x.h_qty + !needed_quantity) < Int64.of_int 0) 
+                                      then (*backing back some short sell *)
+                                            let ht' = {hh_h_t_id = x.h_t_id; 
+                                                       hh_t_id = tid; 
+                                                       hh_b_qty = x.h_qty; 
+                                                       hh_a_qty = x.h_qty + !needed_quantity} in 
+                                            Update.holding_table (fun ckey -> IdTriple.compare ckey
+                                                         (tid, (caid, symbol))) 
+                                                         (fun h -> {h_t_id = x.h_t_id; 
+                                                                    h_ca_id = x.h_ca_id; 
+                                                                    h_s_symb = x.h_s_symb; 
+                                                                    h_price = x.h_price; 
+                                                                    h_qty = x.h_qty + !needed_quantity}) >>= fun () ->
+                                            sell_value := Int64.add !sell_value (Int64.mul !needed_quantity (x.h_price));
+                                            buy_value := Int64.add !buy_value (Int64.mul !needed_quantity (trade_price));
+                                            needed_quantity := Int64.of_int 0;
+                                            Insert.holding_history_table ht'
                                       else  (* buying back all short sell *)
-                                            
-                                            Insert.holding_history_table {hh_h_t_id = x.h_t_id; 
-                                                                          hh_t_id = tid; 
-                                                                          hh_b_qty = x.h_qty; 
-                                                                          hh_a_qty = Int64.of_int 0} >>= fun () ->
-                                            Delete.holding_table (x.h_t_id, (x.h_ca_id, x.h_s_symb)) >>= fun () ->
+                                            (let ht' = {hh_h_t_id = x.h_t_id; 
+                                                        hh_t_id = tid; 
+                                                        hh_b_qty = x.h_qty; 
+                                                        hh_a_qty = Int64.of_int 0} in 
+                                            Delete.holding_table (x.h_t_id, x.h_ca_id, x.h_s_symb) >>= fun () ->
                                             x.h_qty = Int64.of_int (- Int64.to_int x.h_qty) ;
                                             sell_value := Int64.add !sell_value (Int64.mul x.h_qty (x.h_price));
                                             buy_value := Int64.add !buy_value (Int64.mul x.h_qty (trade_price));
                                             needed_quantity := !needed_quantity - x.h_qty ;
-                                            Txn.return())
-                                            (Txn.return()) hos
+                                            Insert.holding_history_table ht'))
+                                            (Txn.return()) hos) 
                                             
-                                      ; if !needed_quantity > Int64.of_int 0
+                                      ; if (!needed_quantity > Int64.of_int 0) (* covered all short sells and buying new holdings *)
                                       then 
-                                           Insert.holding_history_table {hh_h_t_id = tid; 
+                                           (Insert.holding_history_table {hh_h_t_id = tid; 
                                                                          hh_t_id = tid; 
                                                                          hh_b_qty = Int64.of_int 0; 
                                                                          hh_a_qty = !needed_quantity} >>= fun () ->
@@ -1277,29 +1292,51 @@ let trade_result_txn tid caid ttid cid bid symbol trade_price =
                                                                  h_ca_id = caid; 
                                                                  h_s_symb = symbol; 
                                                                  h_price = tprice; 
-                                                                 h_qty = !needed_quantity} >>= fun () ->
-                                                                 Txn.return() 
-                                      else Txn.return() 
-              else if ((Int64.of_int (- (Int64.to_int hs.hs_qty))) = tqty) 
+                                                                 h_qty = !needed_quantity})
+                                    else Txn.return() in y
+             else if ((Int64.of_int (- (Int64.to_int hs.hs_qty))) = tqty) 
                   then Delete.holding_summary_table (caid, symbol) >>= fun () ->
-                  Txn.return()
-                      else Txn.return()
-(* Computing the commission of the broker who executed the trade *)
-Select1.commission_rate_table (ctier, tid) >>= fun cr ->
-  let comm_amount = ((Int64.div (cr.cr_rate) (Int64.of_int 100)) * ((tqty) * (tprice))) in 
-Update.trade_table (fun tkey -> IdPair.compare tkey (tid, caid))
-                   (fun t -> {t with t_comm = comm_amount}) ;
-Insert.trade_history_table {th_t_id = tid; th_st_id = true};
-Update.broker_table (fun brid -> Id.compare brid bid)
-                    (fun b -> {b with b_num_trades = b.b_num_trades + Int64.of_int 1;
-                                      b_comm = b.b_comm + comm_amount}) ;
-let se_amount =  
-if (t.t_is_sell = true)  
-then (((tqty) * (tprice)) - (ccharge) - (comm_amount)) 
-else Int64.of_int (- Int64.to_int ((tqty * tprice) - ccharge - comm_amount)) in 
-Update.customer_account_table (fun cakey -> IdTriple.compare cakey (caid, (bid, cid)))
-                              (fun ca -> {ca with ca_bal = ca.ca_bal + se_amount}) 
+                  Txn.return();
+                  else Txn.return();
 
+
+(* Computing the commission of the broker who executed the trade *)
+    if (sell_value > buy_value) then 
+    ((let now_dts = Some (Unix.time()) in   
+              let cr' = filter_comm cr in
+              (* calculating the tax that can be incurred because of thsi trade *)
+              let tax_amount = Int64.mul (Int64.sub !sell_value !buy_value) tax.tx_rate in 
+              let comm_amount = ((Int64.div (cr'.cr_rate) (Int64.of_int 100)) * ((tqty) * (tprice))) in 
+              Update.trade_table (fun (t, (tcaid, (_, _))) -> IdPair.compare (t,tcaid) (tid,caid))
+                                                                (fun l -> {l with t_comm = comm_amount;
+                                                                                  t_dts = now_dts});
+              let th = {th_t_id = tid; th_dts = now_dts} in 
+              Insert.trade_history_table th;
+              Update.broker_table (fun brid -> Id.compare brid bid)
+                                  (fun b -> {b with b_num_trades = b.b_num_trades + Int64.of_int 1;
+                                                    b_comm = b.b_comm + comm_amount}) ;
+    (if (tt.tt_is_sell = Int64.of_int 1)  
+      then (let se_amount = ref (Int64.of_int 0) in 
+            se_amount := Int64.add !se_amount 
+                                  (Int64.sub (Int64.mul (tqty) 
+                                                        (tprice)) 
+                                                        (Int64.sub (ccharge) 
+                                                                   (comm_amount)));
+                                                                   Txn.return())
+      else
+          (let se_amount = ref (Int64.of_int 0) in 
+           se_amount := !se_amount + (Int64.of_int (- Int64.to_int ((tqty * tprice) - ccharge - comm_amount)));
+           se_amount := Int64.sub !se_amount tax_amount;
+            (if (t.t_is_cash = true) 
+              then (Update.customer_account_table (fun cakey -> IdTriple.compare cakey (caid, (bid, cid)))
+                                          (fun ca -> {ca with ca_bal = ca.ca_bal + !se_amount}) >>= fun () ->
+                   let s = {se_t_id= tid; se_cash_type = true; se_amt = !se_amount} in 
+                   Insert.settlement_table s)
+              else
+                  let s = {se_t_id= tid; se_cash_type = false; se_amt = !se_amount} in 
+                  Insert.settlement_table s)))))
+  else Txn.return()
+    
 
 
 
