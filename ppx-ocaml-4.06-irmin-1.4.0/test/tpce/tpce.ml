@@ -16,6 +16,8 @@ module Id = struct
       | None -> 0L in
     let y = Int64.of_int y in
     Int64.add (Random.int64 (Int64.sub y x)) x
+
+  let print_id x = output_string stdout (string_of_int (Int64.to_int x))
 end
 
 type id = Id.t
@@ -44,17 +46,16 @@ let merge ~ancestor:lca v1 v2  =
 end 
 
 (* Information about the customer *)
-(* c_id represents the customer identifier 
- * c_tier represents the tier number, tier1 customer are charged more fee 
-   and tier3 customers are charged least fee *)
-(* c_tier is merged using the counter merge *)
+(* c_id represents the customer identifier*)
 (* c_tax_id is used as tax identifier *)
 module Customer = struct
 type t = {c_id : id; 
-          c_tax_id : id; 
-          c_tier : id}
+          c_tax_id : id}
 let merge ~ancestor:lca v1 v2  =  
     failwith "account_permission is immutable"
+
+let print_customer c = function
+   | {c_id=c; c_tax_id=ct} -> Id.print_id c; Id.print_id ct
 
 end 
 
@@ -143,10 +144,9 @@ type t = {b_id : id;
 end 
 
 (* Charges for placing a trade request *)
-(* Charges are based on the customer's tier and the trade type *)
+(* Charges are based on the trade type *)
 module Charge = struct 
 type t = {ch_tt_id : id; 
-          ch_c_tier : id; 
           ch_chrg : int64}
 let merge ~ancestor:lca {ch_chrg=y1} {ch_chrg=y2} =  
     {lca with ch_chrg = (counter_merge lca.ch_chrg y1 y2)}
@@ -161,19 +161,18 @@ end
 (* cr_rate represents the commission rate. Ranges from 0 to 100. 10% is 10.00 *)
 (* cr_ex_id represents the exchange that executed the trade *)
 module CommissionRate = struct 
-type t = {cr_c_tier : id; 
-          cr_tt_id : id; 
+type t = {cr_tt_id : id; 
           cr_ex_id : id; 
           cr_from_qty : int64; 
           cr_to_qty : int64; 
           cr_rate : int64}
-let merge ~ancestor:{cr_c_tier; cr_tt_id; cr_ex_id; cr_from_qty = q; cr_to_qty=y; cr_rate=z} 
+let merge ~ancestor:{cr_tt_id; cr_ex_id; cr_from_qty = q; cr_to_qty=y; cr_rate=z} 
                     {cr_from_qty = q1; cr_to_qty=y1; cr_rate= z1}
                     {cr_from_qty = q2; cr_to_qty=y2; cr_rate= z2} = 
     let q' = counter_merge q q1 q2 in 
     let y' = counter_merge y y1 y2 in 
     let z' = counter_merge z z1 z2 in 
-    {cr_c_tier; cr_tt_id; cr_ex_id; cr_from_qty = q'; cr_to_qty = y'; cr_rate = z'}
+    {cr_tt_id; cr_ex_id; cr_from_qty = q'; cr_to_qty = y'; cr_rate = z'}
 end 
 
 (* Settlement contains information about how trades are settled 
@@ -393,7 +392,7 @@ end
 (* Each customer consists of fields like customer id and customer tier *)
 (* Its like a table with each row consisting representing customer and 
    its columns are customer id and customer tier *)
-module CustomerTable = Rbmap.Make(Id)(Customer)
+module CustomerTable = Rbmap.Make(IdPair)(Customer)
 
 (* Each row corresponds to account associated with each customer *)
 module CustomerAccountTable = Rbmap.Make(IdTriple)(CustomerAccount)
@@ -404,7 +403,7 @@ module HoldingHistoryTable = Rbmap.Make(IdPair)(HoldingHistory)
 
 module ChargeTable = Rbmap.Make(Id)(Charge)
 
-module CommissionRateTable = Rbmap.Make(IdTriple)(CommissionRate)
+module CommissionRateTable = Rbmap.Make(IdPair)(CommissionRate)
 
 module HoldingSummaryTable = Rbmap.Make(IdPair)(HoldingSummary)
 
@@ -430,14 +429,13 @@ module ExchangeTable = Rbmap.Make(Id)(Exchange)
 
 module CompanyTable = Rbmap.Make(Id)(Company)
 
-module SecurityTable = Rbmap.Make(Id)(Security)
+module SecurityTable = Rbmap.Make(IdTriple)(Security)
 
 module TradeTypeTable = Rbmap.Make(Id)(TradeType)
 
 module SettlementTable = Rbmap.Make(Id)(Settlement)
 
-module AccountPermissionTable = Rbmap.Make(Id)(AccountPermission)
-
+module AccountPermissionTable = Rbmap.Make(IdPair)(AccountPermission)
 
 (* db is a database consisting of columns for each type.
    It is a collection of tables representing each type. *)
@@ -481,6 +479,7 @@ open TradeType
 open Security 
 open AccountPermission
 
+
 (* type 'a t takes a database db and returns a pair of result and the updated db *)
 module Txn = struct
   type 'a t = db -> 'a*db
@@ -492,20 +491,21 @@ module Txn = struct
   let return a = fun db -> (a,db)
 end
 
+
 module Select1 = struct
   open Printf
 
   (* customer_table db contains all the customers in the market
      we select the customer with c_id as x in the customer table present 
      in the database db *)
-  let customer_table (x) db =
+  let customer_table (x,y) db =
     try
       let t = db.customer_table in
-      let res = CustomerTable.find (x) t in
+      let res = CustomerTable.find (x,y) t in
       (res, db)
     with Not_found ->
       failwith @@ sprintf "Customer<%s> not found"
-        (Id.to_string (x))
+        (IdPair.to_string (x,y))
 
   (* db is the table containing all the types
      we select the customer account belonging to customer y and  
@@ -583,14 +583,14 @@ module Select1 = struct
         (Id.to_string (x))
 
       (* select the commission rate table  with trade id as x and customer tier as y *)
-  let commission_rate_table (x,(y, z)) db =
+  let commission_rate_table (x, z) db =
     try
       let t = db.commission_rate_table in
-      let res = CommissionRateTable.find (x,(y, z)) t in
+      let res = CommissionRateTable.find (x,z) t in
       (res, db)
     with Not_found ->
       failwith @@ sprintf "Charge<%s> not found"
-        (IdTriple.to_string (x,(y, z)))
+        (IdPair.to_string (x,z))
 
   let last_trade_table (x) db =
     try
@@ -639,23 +639,23 @@ module Select1 = struct
       failwith @@ sprintf "Company Table <%s> not found"
         (Id.to_string (x))
 
-  let security_table (x) db =
+  let security_table (x,y,z) db =
     try
       let t = db.security_table in
-      let res = SecurityTable.find (x) t in
+      let res = SecurityTable.find (x, (y,z)) t in
       (res, db)
     with Not_found ->
       failwith @@ sprintf "Security Table <%s> not found"
-        (Id.to_string (x))
+        (IdTriple.to_string (x,(y,z)))
 
-    let account_permission_table (x) db =
+    let account_permission_table (x,y) db =
     try
       let t = db.account_permission_table in
-      let res = AccountPermissionTable.find (x) t in
+      let res = AccountPermissionTable.find (x,y) t in
       (res, db)
     with Not_found ->
       failwith @@ sprintf "AP <%s> not found"
-        (Id.to_string (x))
+        (IdPair.to_string (x,y))
 
       let tax_rate_table (x) db =
     try
@@ -774,14 +774,74 @@ module Insert = struct
   let customer_table th db = 
     let open Customer in
     let t = db.customer_table in
-    let t'= CustomerTable.insert (th.c_id) th t in
+    let t'= CustomerTable.insert (th.c_id, th.c_tax_id) th t in
         ((),{db with customer_table=t'})
+
+  let broker_table th db = 
+    let open Broker in
+    let t = db.broker_table in
+    let t'= BrokerTable.insert (th.b_id) th t in
+        ((),{db with broker_table=t'})
 
    let customer_account_table th db = 
     let open CustomerAccount in
     let t = db.customer_account_table in
     let t'= CustomerAccountTable.insert (th.ca_id, (th.ca_b_id, th.ca_c_id)) th t in
         ((),{db with customer_account_table=t'})
+
+  let account_permission_table th db = 
+    let open AccountPermission in
+    let t = db.account_permission_table in
+    let t'= AccountPermissionTable.insert (th.ap_ca_id, th.ap_tax_id) th t in
+        ((),{db with account_permission_table=t'})
+
+  let security_table th db = 
+    let open Security in
+    let t = db.security_table in
+    let t'= SecurityTable.insert (th.s_symb, (th.s_ex_id, th.s_co_id)) th t in
+        ((),{db with security_table=t'})
+
+  let trade_type_table th db = 
+    let open TradeType in
+    let t = db.trade_type_table in
+    let t'= TradeTypeTable.insert (th.tt_id) th t in
+        ((),{db with trade_type_table=t'})
+
+  let company_table th db = 
+    let open Company in
+    let t = db.company_table in
+    let t'= CompanyTable.insert (th.co_id) th t in
+        ((),{db with company_table=t'})
+
+  let exchange_table th db = 
+    let open Exchange in
+    let t = db.exchange_table in
+    let t'= ExchangeTable.insert (th.ex_id) th t in
+        ((),{db with exchange_table=t'})
+
+  let tax_rate_table th db = 
+    let open TaxRate in
+    let t = db.tax_rate_table in
+    let t'= TaxRateTable.insert (th.tax_id) th t in
+        ((),{db with tax_rate_table=t'})
+
+  let commission_rate_table th db = 
+    let open CommissionRate in
+    let t = db.commission_rate_table in
+    let t'= CommissionRateTable.insert (th.cr_tt_id, th.cr_ex_id) th t in
+        ((),{db with commission_rate_table=t'})
+
+let charge_table th db = 
+    let open Charge in
+    let t = db.charge_table in
+    let t'= ChargeTable.insert (th.ch_tt_id) th t in
+        ((),{db with charge_table=t'})
+
+let last_trade_table th db = 
+    let open LastTrade in
+    let t = db.last_trade_table in
+    let t'= LastTradeTable.insert (th.lt_s_symb) th t in
+        ((),{db with last_trade_table=t'})
 end 
 
 module Update = struct
@@ -918,7 +978,7 @@ let rec market_feed_txn lt_s_symb t_price tr_qty type_limit_sell type_limit_buy 
 (* First job done:
    For the trade id, information for trade is returned and the 
    executor's name for trade is modified *)
-let rec trade_update_txn job_to_be_done tid tcaid ttid tsymb exec_name start_t end_t = 
+let rec trade_update_txn job_to_be_done tid tcaid ttid tsymb exec_name execid coid start_t end_t = 
   if (job_to_be_done = 1) then 
    let change_exec_name ex = match ex with 
     |"some _ X some _" -> "some _  some _"
@@ -967,7 +1027,7 @@ else if (job_to_be_done = 3) then
                        else filter_trs_time_based xl in 
         let trs' = filter_trs_time_based trs in 
      Select.trade_type_table (fun t -> Id.compare t ttid) >>= fun ttys ->
-     Select.security_table (fun s -> Id.compare s tsymb) >>= fun sec ->
+     Select.security_table (fun (s,(e,c)) -> IdTriple.compare (s, (e,c)) (tsymb, (execid, coid))) >>= fun sec ->
      List.fold_left (fun pre x -> pre >>= fun () ->
                             Select1.settlement_table (x.t_id) >>= fun st ->
                             Select1.trade_history_table (x.t_id) >>= fun th ->
@@ -980,7 +1040,7 @@ else if (job_to_be_done = 3) then
 
 (* Trade-cleanup Transaction *)
 (* Used to cancel any trade in requested trade list from the database *)
-let trade_cleanup_txn tid trtid = 
+let trade_cleanup_txn trtid = 
   let now_dts = Some (Unix.time()) in
   (* Get all pending trade requests *)
   Select.trade_request_table (fun (t, (_, (_, (_)))) ->
@@ -1002,14 +1062,13 @@ let trade_cleanup_txn tid trtid =
 (* Buy or sell of a trade by a customer or brokage *)
 (* Allows the person trading to execute buys or sells at current market price *)
 (* Customer places a request on the brokage house to initiate a trade *)
-let trade_order_txn acctid bid cid coid exec_tax_id symbol tid trade_type_id requested_price trade_qty exec_name = 
+let trade_order_txn acctid bid cid ctaxid coid exec_tax_id symbol tid trade_type_id requested_price trade_qty exec_name = 
   (* Retrieving the information about customer, customer account and broker who are involved in this trade *)
   let buy_value = ref (Int64.of_int 0) in 
   let sell_value = ref (Int64.of_int 0) in 
   let needed_quantity = ref trade_qty in 
   let ca = Select1.customer_account_table (acctid, bid, cid) in 
-  Select1.customer_table (cid) >>= fun c ->
-  let ctaxid = c.c_tax_id in 
+  Select1.customer_table (cid, ctaxid) >>= fun c ->
   let b = Select1.broker_table (bid) in 
   (* check on whether the executor tax id matches the customer's tax id or not
      if it matches then order can be possible else it is not possible *)
@@ -1018,12 +1077,12 @@ let trade_order_txn acctid bid cid coid exec_tax_id symbol tid trade_type_id req
      account permission tax id associated with the account acctid *)
   if (exec_tax_id != ctaxid) then Txn.return()
     (* Estimating the overall impact of executing the requested trade *)
-    else Select1.account_permission_table (acctid) >>= fun ap ->
+    else Select1.account_permission_table (acctid,exec_tax_id) >>= fun ap ->
          if (ap.ap_tax_id != exec_tax_id) then Txn.return() else 
          (* Get information on security involved in the trade 
             and comapany handling the security *) 
          Select1.company_table coid >>= fun co ->
-         Select1.security_table (symbol) >>= fun sec ->
+         Select1.security_table (symbol, exec_tax_id, coid) >>= fun sec ->
          (* Getting the current market price from the last trade table *)
          Select1.last_trade_table (symbol) >>= fun lt ->
          let market_price = lt.lt_price in 
@@ -1098,7 +1157,7 @@ let trade_order_txn acctid bid cid coid exec_tax_id symbol tid trade_type_id req
             Select1.tax_rate_table(c.c_tax_id) >>= fun tax ->
             let tax_amount = Int64.mul (Int64.sub !sell_value !buy_value) tax.tx_rate in 
             (* Calculating the commission rate and charge *)
-            Select1.commission_rate_table (c.c_tier, (tid, exec_tax_id)) >>= fun comm ->
+            Select1.commission_rate_table (tid, exec_tax_id) >>= fun comm ->
             Select1.charge_table (tid) >>= fun ch ->
             let comm_amount = ((Int64.div (comm.cr_rate) (Int64.of_int 100)) * ((trade_qty) * (market_price))) in 
             (* Insert a new row for this trade in the trade table *)
@@ -1144,7 +1203,7 @@ let trade_order_txn acctid bid cid coid exec_tax_id symbol tid trade_type_id req
 (* Trade id is passed as argument which is used to retrieve the information about the trade *)
 (* Symbol represents the security symbol *)
 
-let trade_result_txn tid caid ttid cid bid symbol trade_price = 
+let trade_result_txn tid caid ttid cid ctaxid bid symbol trade_price = 
   (* Getting information on the trade and the customer's account *)
   (* Selecting the trade with id tid in the trade table *)
   Select1.trade_table (tid,caid, ttid, symbol) >>= fun t ->
@@ -1167,12 +1226,11 @@ let trade_result_txn tid caid ttid cid bid symbol trade_price =
   let bid = c_account.ca_b_id in 
   let cid = c_account.ca_c_id in
   (* Selecting the customer that holds the account caid *) 
-  Select1.customer_table cid >>= fun c ->
-  let ctier = c.c_tier in
+  Select1.customer_table (cid, ctaxid) >>= fun c ->
   Select1.charge_table tid >>= fun ch ->
   Select1.tax_rate_table(c.c_tax_id) >>= fun tax ->
-  Select.commission_rate_table (fun (x,(y, z)) -> 
-                             IdTriple.compare (x,(y, z)) (c.c_tier, (tid, c.c_tax_id))) >>= fun cr ->
+  Select.commission_rate_table (fun ((y, z)) -> 
+                             IdPair.compare ((y, z)) ((tid, c.c_tax_id))) >>= fun cr ->
   let rec filter_comm cr = match cr with 
    | x :: xl -> if x.cr_from_qty <= tqty && x.cr_to_qty >= tqty then x else filter_comm xl in 
   let ccharge = ch.ch_chrg in 
