@@ -569,7 +569,7 @@ module Select1 = struct
       let res = TradeTable.find (x,(y, (z, (w)))) t in
       (res, db)
     with Not_found ->
-      failwith @@ sprintf "Customer<%s> not found"
+      failwith @@ sprintf "Trade <%s> not found"
         (IdQuad.to_string (x,(y, (z, (w)))))
 
     (* select the charge with trade id as x and customer tier as y *)
@@ -589,7 +589,7 @@ module Select1 = struct
       let res = CommissionRateTable.find (x,z) t in
       (res, db)
     with Not_found ->
-      failwith @@ sprintf "Charge<%s> not found"
+      failwith @@ sprintf "Commission Rate <%s> not found"
         (IdPair.to_string (x,z))
 
   let last_trade_table (x) db =
@@ -598,7 +598,7 @@ module Select1 = struct
       let res = LastTradeTable.find (x) t in
       (res, db)
     with Not_found ->
-      failwith @@ sprintf "Charge<%s> not found"
+      failwith @@ sprintf "Last Trade <%s> not found"
         (Id.to_string (x))
 
 
@@ -636,7 +636,7 @@ module Select1 = struct
       let res = CompanyTable.find (x) t in
       (res, db)
     with Not_found ->
-      failwith @@ sprintf "Company Table <%s> not found"
+      failwith @@ sprintf "Company <%s> not found"
         (Id.to_string (x))
 
   let security_table (x,y,z) db =
@@ -645,7 +645,7 @@ module Select1 = struct
       let res = SecurityTable.find (x, (y,z)) t in
       (res, db)
     with Not_found ->
-      failwith @@ sprintf "Security Table <%s> not found"
+      failwith @@ sprintf "Security <%s> not found"
         (IdTriple.to_string (x,(y,z)))
 
     let account_permission_table (x,y) db =
@@ -663,7 +663,7 @@ module Select1 = struct
       let res = TaxRateTable.find (x) t in
       (res, db)
     with Not_found ->
-      failwith @@ sprintf "AP <%s> not found"
+      failwith @@ sprintf "Tax Rate <%s> not found"
         (Id.to_string (x))
 end
 
@@ -1158,11 +1158,11 @@ let trade_order_txn acctid bid cid ctaxid coid exec_tax_id symbol tid trade_type
             let tax_amount = Int64.mul (Int64.sub !sell_value !buy_value) tax.tx_rate in 
             (* Calculating the commission rate and charge *)
             Select1.commission_rate_table (tid, exec_tax_id) >>= fun comm ->
-            Select1.charge_table (tid) >>= fun ch ->
+            Select1.charge_table (trade_type_id) >>= fun ch ->
             let comm_amount = ((Int64.div (comm.cr_rate) (Int64.of_int 100)) * ((trade_qty) * (market_price))) in 
             (* Insert a new row for this trade in the trade table *)
             (* This is a cash type *)
-            let ntid = Random.int64 10000000000L in
+            let ntid = Random.int64 10L in
             let new_tr= { t_id = ntid;
                           t_ca_id = acctid; 
                           tt_id = trade_type_id;
@@ -1177,7 +1177,7 @@ let trade_order_txn acctid bid cid ctaxid coid exec_tax_id symbol tid trade_type
             Insert.trade_table new_tr) in Txn.return()
         else (* limit order *) (* in this case the person waits for specific price *)
              (* So we add it in the trade request table *)
-           let _ = (let nrtid = Random.int64 10000000000L in
+           let _ = (let nrtid = Random.int64 10L in
            let now_dts = Some (Unix.time()) in 
            let new_treq = {tr_t_id = nrtid;
                            tr_tt_id = trade_type_id;
@@ -1223,11 +1223,9 @@ let trade_result_txn tid caid ttid cid ctaxid bid symbol trade_price =
   Select1.holding_summary_table (caid, symbol) >>= fun hs ->
   (* Selecting the customer account with customer accoutn id ad caid *)
   Select1.customer_account_table (caid, bid, cid) >>= fun c_account ->
-  let bid = c_account.ca_b_id in 
-  let cid = c_account.ca_c_id in
   (* Selecting the customer that holds the account caid *) 
   Select1.customer_table (cid, ctaxid) >>= fun c ->
-  Select1.charge_table tid >>= fun ch ->
+  Select1.charge_table ttid >>= fun ch ->
   Select1.tax_rate_table(c.c_tax_id) >>= fun tax ->
   Select.commission_rate_table (fun ((y, z)) -> 
                              IdPair.compare ((y, z)) ((tid, c.c_tax_id))) >>= fun cr ->
