@@ -37,12 +37,6 @@ module Make =
    (* labelled edge *)
    type ledge = (edge * elabel)
 
-   (* path is the list of node *)
-   type path = node list
-
-   (* labelled path is the list of labelled node *)
-   type lpath = lnode list
-
    (* labelled link from a node *)
    (* here label represents the edge label *)
    type in_edge = OS.t
@@ -335,6 +329,15 @@ module Make =
                                 List.mem (get_label x) (get_labels g2) 
                              then (get_node x) :: get_common_nodes xl yl 
                              else get_common_nodes xl g2
+
+    let rec get_diff_nodes g1 g2 = match (g1,g2) with 
+      | E_G, E_G -> []
+      | G(x, xl), E_G -> get_nodes g1 
+      | E_G, G(x, xl) -> []
+      | G(x, xl), G(y,yl) -> if List.mem (get_node x) (get_nodes g2) &&
+                                List.mem (get_label x) (get_labels g2) 
+                             then get_diff_nodes xl yl 
+                             else get_node x :: get_diff_nodes xl g2
     
     let rec get_all_contexts g1 = match g1 with 
       | E_G -> []
@@ -406,6 +409,7 @@ module Make =
      | x::xl, y::yl -> if List.mem x l2 then x :: get_intercept_l xl l2 
                        else get_intercept_l xl l2
 
+   let merge_time = ref 0.0
 
     let merge3 o g1 g2 = match (o, g1, g2) with 
       | E_G, E_G, E_G -> E_G 
@@ -432,8 +436,20 @@ module Make =
        let cnog1 = get_common_nodes g1 o in 
        let cnog2 = get_common_nodes g2 o in 
        let il = get_intercept_l cng1g2 (get_intercept_l cnog1 cnog2) in  
+       let dng1o = get_diff_nodes o g1 in
+       let dng2o = get_diff_nodes o g2 in
        let mg1 = update_common_nodes_with_ancestor il o g1 g2 in 
-       mg1
+       let mg2 = delete_nodes dng1o mg1 in 
+      delete_nodes dng2o mg2
+
+    let merge3 o v1 v2 = 
+    let t1 = Sys.time () in
+    let res = merge3 o v1 v2 in
+    let t2 = Sys.time () in
+    begin
+      merge_time := !merge_time +. (t2-.t1);
+      res;
+    end 
 
 
    let print_int64 i = output_string stdout (string_of_int (Int64.to_int i))
