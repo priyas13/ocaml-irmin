@@ -13,7 +13,6 @@ module Edge_type =
 	 let compare = Pervasives.compare
 	end 
 
-
 module Make =
   struct
    (* labels for nodes **)
@@ -217,6 +216,11 @@ module Make =
    let rec get_nodes g = match g with 
     | E_G -> []
     | G (x, xl) -> get_node x :: (get_nodes xl)
+
+    (* gives list of all the nodes present in the graph g *)
+   let rec get_labels g = match g with 
+    | E_G -> []
+    | G (x, xl) -> get_label x :: (get_labels xl)
    
    (* gives all the nodes along with its label present in the graph g *)
    let rec get_nodes_with_label g = match g with 
@@ -238,17 +242,18 @@ module Make =
     | G(x, xl) -> if (get_node x) = n 
                   then G(c', xl) else G(x, (update_context n c' xl))
 
-   let rec update_all_context n = function
+   let rec update_all_context_p_s n = function
     | E_G -> E_G 
     | G(x, xl) -> G(((filter_p_s n (get_in_edge x)),
                    (get_node x),
                    (get_label x),
-                   (filter_p_s n (get_out_edge x))), update_all_context n xl)
+                   (filter_p_s n (get_out_edge x))), update_all_context_p_s n xl)
 
    (* insert node n *)
    let rec insert_node n l p s = function
     | E_G -> G ((p, n, l, s), E_G)
-    | G (x, xl) -> (add_context (p,n,l,s) (G(x,xl)))                   
+    | G (x, xl) -> (add_context (p,n,l,s) (G(x,xl)))
+
 
    (* insert the edge from v to w with label l *)
    let rec insert_edge v w l = function 
@@ -260,11 +265,20 @@ module Make =
                                                xl) 
                                        else G(x, insert_edge v w l xl)
 
+
+
      (* delete node n *)
    let rec delete_node n = function 
-    | E_G -> raise Empty 
-    | G (x, xl) -> if (get_node x = n) then (update_all_context n xl)
-                                       else delete_node n xl
+    | E_G -> E_G 
+    | G (x, xl) -> if (get_node x = n) then (update_all_context_p_s n xl)
+                                       else G(x, delete_node n xl)
+
+   let rec delete_nodes nl g = match nl with 
+    | [] -> g 
+    | x :: xl -> begin
+                 let g' = delete_node x g in 
+                 delete_nodes xl g'
+                 end 
 
    (* delete edge from v to w *)
    let rec delete_edge v w l = function 
@@ -307,41 +321,119 @@ module Make =
       | E_G -> []
       | G (x, y) -> get_edges_in_context x :: get_edges y 
 
-    let rec get_diff_nodes g1 g2 = match (g1, g2) with 
-      | E_G, E_G -> []
-      | G(x,xl), E_G -> get_nodes g1 (* this is a list *)
-      | E_G, G(y,yl) -> []
-      | G(x, xl), G(y, yl) -> if get_node x = get_node y then get_diff_nodes xl g2 
-                              else get_node x :: get_diff_nodes g1 g2
-
-    let rec graph_to_set g1 = match g1 with 
+    (*let rec graph_to_set g1 = match g1 with 
       | E_G -> OS.Empty 
       | G(x, E_G) -> OS.singleton x 
       | G(x, xl) -> let sxl = graph_to_set xl in 
-                    (OS'.union (OS'.singleton x) sxl)
+                    (OS'.union (OS'.singleton x) sxl)*)
 
     let rec get_common_nodes g1 g2 = match (g1,g2) with 
       | E_G, E_G -> []
       | G(x, xl), E_G -> []
       | E_G, G(x, xl) -> []
-      | G(x, xl), G(y,yl) -> if get_node x = get_node y then x :: get_common_nodes xl yl 
+      | G(x, xl), G(y,yl) -> if List.mem (get_node x) (get_nodes g2) &&
+                                List.mem (get_label x) (get_labels g2) 
+                             then (get_node x) :: get_common_nodes xl yl 
                              else get_common_nodes xl g2
+    
+    let rec get_all_contexts g1 = match g1 with 
+      | E_G -> []
+      | G(x, xl) -> x :: get_all_contexts xl 
+
+    let rec get_diff_context g1 g2 = match (g1, g2) with 
+      | E_G, E_G -> []
+      | G(x, xl), E_G -> get_all_contexts g1
+      | E_G, G(x, xl) -> []
+      | G(x, xl), G(y,yl) -> if List.mem (get_node x) (get_nodes g2) &&
+                                List.mem (get_label x) (get_labels g2) then get_diff_context xl g2 
+                             else x :: get_diff_context xl g2
+
+    let rec get_common_context g1 g2 = match (g1, g2) with 
+      | E_G, E_G -> []
+      | G(x, xl), E_G -> []
+      | E_G, G(x, xl) -> []
+      | G(x, xl), G(y,yl) -> if List.mem x (get_all_contexts g2) then get_diff_context xl g2 
+                             else x :: get_diff_context xl g2
+
+    let rec update_common_nodes cl g1 g2 = match cl with 
+      | [] -> g2 
+      | x :: xl -> let cg1 = get_context x g1 in 
+                   let cg2 = get_context x g2 in 
+                   let uc = ((OS.merge3 OS.Empty (get_in_edge cg1) (get_in_edge cg2)),
+                              x, 
+                              get_label cg1,
+                             (OS.merge3 OS.Empty (get_out_edge cg1) (get_out_edge cg2))) in 
+                   let g2' = update_context x uc g2 in 
+                   update_common_nodes xl g1 g2'
+
+      let rec add_context c g1 = match g1 with 
+      | E_G -> G(c, E_G)
+      | G(x, xl) -> G(x, add_context c xl)
+
+    let rec add_contexts cl g1 = match cl with 
+      | [] -> g1
+      | x :: xl -> begin
+                   let g1' = add_context x g1 in 
+                   add_contexts xl g1' 
+                   end
+
+    let rec remove_context x g1 = match g1 with 
+     | E_G -> E_G 
+     | G(y, yl) -> if x = y then yl else G(y, (remove_context x yl))
+
+    let rec update_common_nodes_with_ancestor cl o g1 g2 = match cl with 
+      | [] ->  
+        let dcg1g2 = get_diff_context g1 g2 in
+        let cng1g2 = get_common_nodes g1 g2 in 
+        let g2' = update_common_nodes cng1g2 g1 g2 in
+        add_contexts dcg1g2 g2'
+      | x :: xl -> let cg1 = get_context x g1 in 
+                   let cg2 = get_context x g2 in 
+                   let co = get_context x o in 
+                   let uc = ((OS.merge3 (get_in_edge co) (get_in_edge cg1) (get_in_edge cg2)),
+                              x, 
+                              get_label cg1,
+                             (OS.merge3 (get_out_edge co) (get_out_edge cg1) (get_out_edge cg2))) in 
+                   let g2' = update_context x uc g2 in 
+                   update_common_nodes_with_ancestor xl (remove_context (get_context x o) o) 
+                                                        (remove_context (get_context x g1) g1) g2'
 
 
-    (*let rec merge3 o g1 g2 = match (o, g1, g2) with 
+    let rec get_intercept_l l1 l2 = match (l1,l2) with 
+     | [], [] -> []
+     | l1, [] -> []
+     | [], l2 -> []
+     | x::xl, y::yl -> if List.mem x l2 then x :: get_intercept_l xl l2 
+                       else get_intercept_l xl l2
+
+
+    let merge3 o g1 g2 = match (o, g1, g2) with 
       | E_G, E_G, E_G -> E_G 
       | E_G, E_G, g2 -> g2 
       | E_G, g1, E_G -> g1 
+      | o, E_G, E_G -> E_G
       | o, g1, E_G -> 
-        let dn = get_diff_nodes g1 o in (* a list (nodes present in g1 but not in ancestor *)
-        let cn = get_common_nodes o g1 in 
-          (* in this case the other forked branck that is graph g2 had removed all the 
-             nodes and edges present in the ancestor so we need to remove all the nodes and edges of 
-             ancestor from g1 as well *)
-          (* Why? Because any deleted node and edges in any forked branch must not be present in 
-             the final merged graph *)
-        List.fold_left ()*)
-
+        begin
+        let cng1oc = get_common_nodes g1 o in 
+        delete_nodes cng1oc g1 
+        end 
+      | o, E_G, g2 -> 
+        begin
+        let cng1oc = get_common_nodes g2 o in 
+        delete_nodes cng1oc g2 
+        end 
+      | E_G, g1, g2 -> 
+        let dcg1g2 = get_diff_context g1 g2 in
+        let cng1g2 = get_common_nodes g1 g2 in 
+        let g2' = update_common_nodes cng1g2 g1 g2 in
+        add_contexts dcg1g2 g2' 
+     | G(x,xl), G(y,yl), G(z,zl) ->
+       let cng1g2 = get_common_nodes g1 g2 in
+       let cnog1 = get_common_nodes g1 o in 
+       let cnog2 = get_common_nodes g2 o in 
+       let il = get_intercept_l cng1g2 (get_intercept_l cnog1 cnog2) in  
+       let mg1 = update_common_nodes_with_ancestor il o g1 g2 in 
+       mg1
 
 
    let print_int64 i = output_string stdout (string_of_int (Int64.to_int i))
@@ -354,6 +446,14 @@ module Make =
      print_elements p;
      print_string ")"
 
+   let print_list f l = 
+    let rec print_elements = function 
+    | [] -> ()
+    | x :: xl -> f x ; print_elements xl in 
+      print_string "[";
+      print_elements l;
+      print_string "]"
+
 
    let print_c f f' f'' c = 
      let rec print_elements = function
@@ -362,7 +462,7 @@ module Make =
          f n ;
          f'' l; 
          f' s in 
-        print_string "}";
+        print_string "{";
         print_elements c;
         print_string "}" 
 
