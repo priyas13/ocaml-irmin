@@ -1,0 +1,1 @@
+ocamlfind ocamlopt msigs.ml rbmap.ml irbmap.ml microblog.ml versioned_types.ml imicroblog.ml utils.ml db.ml monkey.ml -o monkey -package ezjsonm,irmin-unix,irmin-http,lwt.unix -linkpkg -thread
