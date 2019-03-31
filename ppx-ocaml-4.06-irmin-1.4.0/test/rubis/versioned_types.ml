@@ -1,13 +1,13 @@
 open Printf
 open Msigs
 open Lwt.Infix
-module Id = Tpcc.Id
+module Id = Rubis.Id
 
 type id = Id.t
 
 let id = Id.t
 
-let counter_merge = Tpcc.counter_merge
+let counter_merge = Rubis.counter_merge
 
 let from_just op msg = match op with
   | Some x -> x
@@ -96,11 +96,11 @@ end
 module Make(Config:CONFIG) = 
 struct
   
-  module IWarehouse : IRMIN_DATA_STRUCTURE 
-    with type adt = Tpcc.Warehouse.t = 
+  module IItem : IRMIN_DATA_STRUCTURE 
+    with type adt = Rubis.Item.t = 
   struct
 
-    module OM = Tpcc.Warehouse 
+    module OM = Rubis.Item 
 
     module AO_value : Irmin.Contents.Conv with type t = OM.t = 
     struct
@@ -109,10 +109,13 @@ struct
        
       let t =
         let open Irmin.Type in 
-        let open Tpcc.Warehouse in
-        record "t" (fun w_id w_ytd -> {w_id; w_ytd})
-        |+ field "w_id" id (fun t -> t.w_id)
-        |+ field "w_ytd" int32 (fun t -> t.w_ytd)
+        let open Rubis.Item in
+        record "t" (fun item_id item_desc item_initialprice item_maxbid -> 
+                    {item_id; item_desc; item_initialprice; item_maxbid})
+        |+ field "item_id" id (fun t -> t.item_id)
+        |+ field "item_desc" string (fun t -> t.item_desc)
+        |+ field "item_initialprice" int64 (fun t -> t.item_initialprice)
+        |+ field "item_maxbid" int64 (fun t -> t.item_maxbid)
         |> sealr
 
       include Serialization(struct 
@@ -124,42 +127,11 @@ struct
     include MakeVersionedDS(Config)(OM)(AO_value)
   end
 
-  module IDistrict: IRMIN_DATA_STRUCTURE 
-    with type adt = Tpcc.District.t = 
+    module IBuyerWallet : IRMIN_DATA_STRUCTURE 
+    with type adt = Rubis.BuyerWallet.t = 
   struct
 
-    module OM = Tpcc.District 
-
-    module AO_value : Irmin.Contents.Conv with type t = OM.t = 
-    struct
-      type adt = OM.t
-      type t = OM.t
-       
-    let t =
-        let open Irmin.Type in
-        let open Tpcc.District in
-        ((((record "madt"
-              (fun d_id ->
-                 fun d_w_id -> fun d_ytd -> { d_id; d_w_id; d_ytd }))
-             |+ (field "d_id" id (fun t -> t.d_id)))
-            |+ (field "d_w_id" id (fun t -> t.d_w_id)))
-           |+ (field "d_ytd" int32 (fun t -> t.d_ytd)))
-          |> sealr
-
-      include Serialization(struct 
-                              type t = adt
-                              let t = t 
-                            end)
-    end
-
-    include MakeVersionedDS(Config)(OM)(AO_value)
-  end
-
-  module IOrder: IRMIN_DATA_STRUCTURE 
-    with type adt = Tpcc.Order.t = 
-  struct
-
-    module OM = Tpcc.Order 
+    module OM = Rubis.BuyerWallet 
 
     module AO_value : Irmin.Contents.Conv with type t = OM.t = 
     struct
@@ -167,30 +139,13 @@ struct
       type t = OM.t
        
       let t =
-        let open Irmin.Type in
-        let open Tpcc.Order in
-        (((((((record "t"
-                 (fun o_id ->
-                    fun o_w_id ->
-                      fun o_d_id ->
-                        fun o_c_id ->
-                          fun o_ol_cnt ->
-                            fun o_carrier_id ->
-                              {
-                                o_id;
-                                o_w_id;
-                                o_d_id;
-                                o_c_id;
-                                o_ol_cnt;
-                                o_carrier_id
-                              }))
-                |+ (field "o_id" id (fun t -> t.o_id)))
-               |+ (field "o_w_id" id (fun t -> t.o_w_id)))
-              |+ (field "o_d_id" id (fun t -> t.o_d_id)))
-             |+ (field "o_c_id" id (fun t -> t.o_c_id)))
-            |+ (field "o_ol_cnt" int32 (fun t -> t.o_ol_cnt)))
-           |+ (field "o_carrier_id" bool (fun t -> t.o_carrier_id)))
-          |> sealr
+        let open Irmin.Type in 
+        let open Rubis.BuyerWallet in
+        record "t" (fun buy_id buyer_balance -> 
+                    {buy_id; buyer_balance})
+        |+ field "buy_id" id (fun t -> t.buy_id)
+        |+ field "buyer_balance" int64 (fun t -> t.buyer_balance)
+        |> sealr
 
       include Serialization(struct 
                               type t = adt
@@ -201,28 +156,26 @@ struct
     include MakeVersionedDS(Config)(OM)(AO_value)
   end
 
-  module INewOrder: IRMIN_DATA_STRUCTURE 
-    with type adt = Tpcc.NewOrder.t = 
+      module ISellerWallet : IRMIN_DATA_STRUCTURE 
+    with type adt = Rubis.SellerWallet.t = 
   struct
 
-    module OM = Tpcc.NewOrder 
+    module OM = Rubis.SellerWallet 
 
     module AO_value : Irmin.Contents.Conv with type t = OM.t = 
     struct
       type adt = OM.t
       type t = OM.t
        
-    let t =
-        let open Irmin.Type in
-        let open Tpcc.NewOrder in
-        ((((record "t"
-              (fun no_o_id ->
-                 fun no_d_id ->
-                   fun no_w_id -> { no_o_id; no_d_id; no_w_id }))
-             |+ (field "no_o_id" id (fun t -> t.no_o_id)))
-            |+ (field "no_d_id" id (fun t -> t.no_d_id)))
-           |+ (field "no_w_id" id (fun t -> t.no_w_id)))
-          |> sealr
+      let t =
+        let open Irmin.Type in 
+        let open Rubis.SellerWallet in
+        record "t" (fun sell_id sell_i_id seller_balance -> 
+                    {sell_id; sell_i_id; seller_balance})
+        |+ field "sell_id" id (fun t -> t.sell_id)
+        |+ field "sell_i_id" id (fun t -> t.sell_i_id)
+        |+ field "seller_balance" int64 (fun t -> t.seller_balance)
+        |> sealr
 
       include Serialization(struct 
                               type t = adt
@@ -233,52 +186,28 @@ struct
     include MakeVersionedDS(Config)(OM)(AO_value)
   end
 
-  module IOrderLine: IRMIN_DATA_STRUCTURE 
-    with type adt = Tpcc.OrderLine.t = 
+
+      module IBid : IRMIN_DATA_STRUCTURE 
+    with type adt = Rubis.Bid.t = 
   struct
 
-    module OM = Tpcc.OrderLine 
+    module OM = Rubis.Bid
 
     module AO_value : Irmin.Contents.Conv with type t = OM.t = 
     struct
       type adt = OM.t
       type t = OM.t
        
-    let t =
-        let open Irmin.Type in
-        let open Tpcc.OrderLine in
-        ((((((((((record "t"
-                    (fun ol_o_id ->
-                       fun ol_d_id ->
-                         fun ol_w_id ->
-                           fun ol_num ->
-                             fun ol_amt ->
-                               fun ol_i_id ->
-                                 fun ol_supply_w_id ->
-                                   fun ol_qty ->
-                                     fun ol_delivery_d ->
-                                       {
-                                         ol_o_id;
-                                         ol_d_id;
-                                         ol_w_id;
-                                         ol_num;
-                                         ol_amt;
-                                         ol_i_id;
-                                         ol_supply_w_id;
-                                         ol_qty;
-                                         ol_delivery_d
-                                       }))
-                   |+ (field "ol_o_id" id (fun t -> t.ol_o_id)))
-                  |+ (field "ol_d_id" id (fun t -> t.ol_d_id)))
-                 |+ (field "ol_w_id" id (fun t -> t.ol_w_id)))
-                |+ (field "ol_num" int32 (fun t -> t.ol_num)))
-               |+ (field "ol_amt" int32 (fun t -> t.ol_amt)))
-              |+ (field "ol_i_id" id (fun t -> t.ol_i_id)))
-             |+
-             (field "ol_supply_w_id" id (fun t -> t.ol_supply_w_id)))
-            |+ (field "ol_qty" int32 (fun t -> t.ol_qty)))
-           |+ (field "ol_delivery_d" (option float) (fun t -> t.ol_delivery_d)))
-          |> sealr
+      let t =
+        let open Irmin.Type in 
+        let open Rubis.Bid in
+        record "t" (fun b_id b_buy_id b_i_id bid_amount -> 
+                    {b_id; b_buy_id; b_i_id; bid_amount})
+        |+ field "b_id" id (fun t -> t.b_id)
+        |+ field "b_buy_id" id (fun t -> t.b_buy_id)
+        |+ field "b_i_id" id (fun t -> t.b_i_id)
+        |+ field "bid_amount" int64 (fun t -> t.bid_amount)
+        |> sealr
 
       include Serialization(struct 
                               type t = adt
@@ -288,28 +217,26 @@ struct
 
     include MakeVersionedDS(Config)(OM)(AO_value)
   end
-  module IItem: IRMIN_DATA_STRUCTURE 
-    with type adt = Tpcc.Item.t = 
+
+      module IItemBid : IRMIN_DATA_STRUCTURE 
+    with type adt = Rubis.ItemBid.t = 
   struct
 
-    module OM = Tpcc.Item 
+    module OM = Rubis.ItemBid
 
     module AO_value : Irmin.Contents.Conv with type t = OM.t = 
     struct
       type adt = OM.t
       type t = OM.t
        
-    let t =
-        let open Irmin.Type in
-        let open Tpcc.Item in
-        ((((record "t"
-              (fun i_id ->
-                 fun i_name ->
-                   fun i_price -> { i_id; i_name; i_price }))
-             |+ (field "i_id" id (fun t -> t.i_id)))
-            |+ (field "i_name" string (fun t -> t.i_name)))
-           |+ (field "i_price" int32 (fun t -> t.i_price)))
-          |> sealr
+      let t =
+        let open Irmin.Type in 
+        let open Rubis.ItemBid in
+        record "t" (fun i_id i_buy_id -> 
+                    {i_id; i_buy_id})
+        |+ field "i_id" id (fun t -> t.i_id)
+        |+ field "i_b_id" id (fun t -> t.i_buy_id)
+        |> sealr
 
       include Serialization(struct 
                               type t = adt
@@ -319,42 +246,28 @@ struct
 
     include MakeVersionedDS(Config)(OM)(AO_value)
   end
-  module IHist: IRMIN_DATA_STRUCTURE 
-    with type adt = Tpcc.Hist.t = 
+
+
+        module IWalletBid : IRMIN_DATA_STRUCTURE 
+    with type adt = Rubis.WalletBid.t = 
   struct
 
-    module OM = Tpcc.Hist 
+    module OM = Rubis.WalletBid
 
     module AO_value : Irmin.Contents.Conv with type t = OM.t = 
     struct
       type adt = OM.t
       type t = OM.t
        
-    let t =
-        let open Irmin.Type in
-        let open Tpcc.Hist in
-        (((((((record "t"
-                 (fun h_c_id ->
-                    fun h_c_d_id ->
-                      fun h_c_w_id ->
-                        fun h_d_id ->
-                          fun h_w_id ->
-                            fun h_amt ->
-                              {
-                                h_c_id;
-                                h_c_d_id;
-                                h_c_w_id;
-                                h_d_id;
-                                h_w_id;
-                                h_amt
-                              }))
-                |+ (field "h_c_id" id (fun t -> t.h_c_id)))
-               |+ (field "h_c_d_id" id (fun t -> t.h_c_d_id)))
-              |+ (field "h_c_w_id" id (fun t -> t.h_c_w_id)))
-             |+ (field "h_d_id" id (fun t -> t.h_d_id)))
-            |+ (field "h_w_id" id (fun t -> t.h_w_id)))
-           |+ (field "h_amt" int32 (fun t -> t.h_amt))) 
-          |> sealr
+      let t =
+        let open Irmin.Type in 
+        let open Rubis.WalletBid in
+        record "t" (fun w_buy_id w_b_id timestamp -> 
+                    {w_buy_id; w_b_id; timestamp})
+        |+ field "w_buy_id" id (fun t -> t.w_buy_id)
+        |+ field "w_b_id" id (fun t -> t.w_b_id)
+        |+ field "timestamp" (option float) (fun t -> t.timestamp)
+        |> sealr
 
       include Serialization(struct 
                               type t = adt
@@ -365,39 +278,25 @@ struct
     include MakeVersionedDS(Config)(OM)(AO_value)
   end
 
-  module IStock: IRMIN_DATA_STRUCTURE 
-    with type adt = Tpcc.Stock.t = 
+          module IWalletItem : IRMIN_DATA_STRUCTURE 
+    with type adt = Rubis.WalletItem.t = 
   struct
 
-    module OM = Tpcc.Stock 
+    module OM = Rubis.WalletItem
 
     module AO_value : Irmin.Contents.Conv with type t = OM.t = 
     struct
       type adt = OM.t
       type t = OM.t
        
-    let t =
-        let open Irmin.Type in
-        let open Tpcc.Stock in
-        ((((((record "t"
-                (fun s_i_id ->
-                   fun s_w_id ->
-                     fun s_qty ->
-                       fun s_ytd ->
-                         fun s_order_cnt ->
-                           {
-                             s_i_id;
-                             s_w_id;
-                             s_qty;
-                             s_ytd;
-                             s_order_cnt
-                           }))
-               |+ (field "s_i_id" id (fun t -> t.s_i_id)))
-              |+ (field "s_w_id" id (fun t -> t.s_w_id)))
-             |+ (field "s_qty" int32 (fun t -> t.s_qty)))
-            |+ (field "s_ytd" int32 (fun t -> t.s_ytd)))
-           |+ (field "s_order_cnt" int32 (fun t -> t.s_order_cnt))) 
-          |> sealr
+      let t =
+        let open Irmin.Type in 
+        let open Rubis.WalletItem in
+        record "t" (fun w_id w_i_id -> 
+                    {w_id; w_i_id})
+        |+ field "w_id" id (fun t -> t.w_id)
+        |+ field "w_i_id" id (fun t -> t.w_i_id)
+        |> sealr
 
       include Serialization(struct 
                               type t = adt
@@ -408,48 +307,26 @@ struct
     include MakeVersionedDS(Config)(OM)(AO_value)
   end
 
-  module ICustomer: IRMIN_DATA_STRUCTURE 
-    with type adt = Tpcc.Customer.t = 
+
+  module IPenality : IRMIN_DATA_STRUCTURE 
+    with type adt = Rubis.Penality.t = 
   struct
 
-    module OM = Tpcc.Customer 
+    module OM = Rubis.Penality
 
     module AO_value : Irmin.Contents.Conv with type t = OM.t = 
     struct
       type adt = OM.t
       type t = OM.t
        
-    let t =
-        let open Irmin.Type in
-        let open Tpcc.Customer in
-        ((((((((record "t"
-                  (fun c_id ->
-                     fun c_d_id ->
-                       fun c_w_id ->
-                         fun c_bal ->
-                           fun c_ytd_payment ->
-                             fun c_payment_cnt ->
-                               fun c_delivery_cnt ->
-                                 {
-                                   c_id;
-                                   c_d_id;
-                                   c_w_id;
-                                   c_bal;
-                                   c_ytd_payment;
-                                   c_payment_cnt;
-                                   c_delivery_cnt
-                                 }))
-                 |+ (field "c_id" id (fun t -> t.c_id)))
-                |+ (field "c_d_id" id (fun t -> t.c_d_id)))
-               |+ (field "c_w_id" id (fun t -> t.c_w_id)))
-              |+ (field "c_bal" int32 (fun t -> t.c_bal)))
-             |+
-             (field "c_ytd_payment" int32 (fun t -> t.c_ytd_payment)))
-            |+
-            (field "c_payment_cnt" int32 (fun t -> t.c_payment_cnt)))
-           |+
-           (field "c_delivery_cnt" int32 (fun t -> t.c_delivery_cnt))) 
-          |> sealr
+      let t =
+        let open Irmin.Type in 
+        let open Rubis.Penality in
+        record "t" (fun u_p_id penality_amount -> 
+                    {u_p_id; penality_amount})
+        |+ field "u_p_id" id (fun t -> t.u_p_id)
+        |+ field "penality_amount" int64 (fun t -> t.penality_amount)
+        |> sealr
 
       include Serialization(struct 
                               type t = adt
@@ -459,4 +336,10 @@ struct
 
     include MakeVersionedDS(Config)(OM)(AO_value)
   end
-end
+
+
+
+
+end 
+
+  

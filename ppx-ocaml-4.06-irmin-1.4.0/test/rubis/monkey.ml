@@ -2,7 +2,7 @@ open Printf
 open Msigs
 module U = Utils
 
-let _ = U.print_header "--------- TPC-C -------"
+let _ = U.print_header "--------- RUBIS -------"
 
 module MkConfig (Vars: sig val root: string end) : CONFIG = struct
   let root = Vars.root
@@ -22,9 +22,9 @@ end
  * --------------------------------------------------------
  *)
 
-module CInit = MkConfig(struct let root = "/tmp/repos/tpcc2.git" end)
-module Itpcc = Itpcc.MakeVersioned(CInit)
-module Vpst = Itpcc.Vpst
+module CInit = MkConfig(struct let root = "/tmp/repos/rubis2.git" end)
+module Irubis = Irubis.MakeVersioned(CInit)
+module Vpst = Irubis.Vpst
 
 let uris = []
 
@@ -36,8 +36,8 @@ let lat = ref 0.0
 let execute_script () =
   Unix.execvp "./get_size.sh" (Array.make 0 "")
 
-let do_txn (fp: out_channel) i (pre: Tpcc.db Vpst.t) 
-                                      : Tpcc.db Vpst.t =
+let do_txn (fp: out_channel) i (pre: Rubis.db Vpst.t) 
+                                      : Rubis.db Vpst.t =
   pre >>= fun db ->
   let txn_name = sprintf "txn_%d" i in
   let _ = printf "Transaction %d started\n" i in
@@ -46,9 +46,11 @@ let do_txn (fp: out_channel) i (pre: Tpcc.db Vpst.t)
   let n = (Random.int 5) + 1 in
   let db' = 
     try 
-      if n<=2 then Db.do_new_order db 
-      else if n<=4 then Db.do_payment db 
-      else Db.do_delivery db 
+      if n<=1 then Db.do_deposit_to_wallet_txn db
+      else if n<=2 then Db.do_new_bid_txn db  
+      else if n<=3 then Db.do_get_maximum_bid_for_an_item_txn db
+      else if n<= 4 then Db.do_auction_txn db  
+      else Db.do_update_penality_for_buyers_txn db 
     with Not_found -> 
       (Db.dump_keys db; raise Not_found) in
   let _ = Gc.minor () in

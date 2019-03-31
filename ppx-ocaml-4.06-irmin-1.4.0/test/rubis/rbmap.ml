@@ -333,4 +333,9 @@ struct
     | Black(l, k, v, r) 
       when sigf k = 0 -> (select sigf l)@(v::(select sigf r))
     | _ -> failwith "Rbmap.select.exhaustiveness"
+
+  let rec select_all t = match t with 
+    | Empty -> []
+    | Red (l, k, v, r) -> (select_all l)@(v::(select_all r))
+    | Black (l,  k, v, r) -> (select_all l)@(v::(select_all r))
 end
