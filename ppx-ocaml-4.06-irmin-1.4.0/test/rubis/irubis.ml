@@ -21,7 +21,7 @@ module MakeVersioned (Config: CONFIG)  = struct
 
   type adt = OM.db
 
-  module IItemTable = Irbmap.MakeVersioned(Config)
+  module IItemTable = Irbmap.MakeVersioned(Config) 
                                 (Id)(Item)
                                 (ItemTable)(IItem)
   module IBuyerWalletTable = Irbmap.MakeVersioned(Config) 
@@ -48,7 +48,7 @@ module MakeVersioned (Config: CONFIG)  = struct
 
 
   type madt = {item_table : IItemTable.t; 
-               buyerwalllet_table: IBuyerWalletTable.t;
+               buyerwallet_table: IBuyerWalletTable.t;
                sellerwallet_table: ISellerWalletTable.t;
                bid_table: IBidTable.t;
                itembid_table: IItemBidTable.t;
@@ -70,29 +70,22 @@ module MakeVersioned (Config: CONFIG)  = struct
 
   type boxed_t = t
 
-  let madt = 
+  let (madt : madt Irmin.Type.t) = 
     let open Irmin.Type in 
     record "madt" 
-      (fun item_table 
-           buyerwallet_table 
-           sellerwallet_table 
-           bid_table
-           itembid_table 
-           walletbid_table 
-           walletitem_table 
-           penality_table ->
-
+      (fun item_table buyerwallet_table 
+           sellerwallet_table bid_table
+           itembid_table walletbid_table 
+           walletitem_table penality_table ->
            {item_table;
             buyerwallet_table;
             sellerwallet_table;
             bid_table;
             itembid_table;
-            walletitem_table;
             walletbid_table;
+            walletitem_table;
             penality_table})
-    |+ field 
-             "item_table" 
-             IItemTable.t
+    |+ field "item_table" IItemTable.t
               (fun t -> t.item_table)
     |+ field "buyerwallet_table" IBuyerWalletTable.t
               (fun t -> t.buyerwallet_table)
@@ -236,7 +229,7 @@ module MakeVersioned (Config: CONFIG)  = struct
         begin
           let ii_tree = transform_tree (module T) 
                            (module IItemTable)
-                           (fun iit -> IItemTable iwt) in
+                           (fun iit -> IItemTable iit) in
           let module IItemTree = 
               (val ii_tree : IITEM_TREE with type t=T.t 
                                                and type tag=T.tag) in
@@ -246,13 +239,13 @@ module MakeVersioned (Config: CONFIG)  = struct
           let _ = flush_all() in
           let ibw_tree = transform_tree (module T) 
                            (module IBuyerWalletTable)
-                           (fun ibwt -> IBuyerWalletTable iwt) in
+                           (fun ibwt -> IBuyerWalletTable ibwt) in
           let module IBuyerWalletTree = 
               (val ibw_tree : IBUYERWALLET_TREE with type t=T.t 
                                                and type tag=T.tag) in
           of_vadt (module IBuyerWalletTable) (module IBuyerWalletTree)
                   adt.buyerwallet_table >>= fun ibuyerwallet_table ->
-          let _ = printf "District table added\n" in
+          let _ = printf "buyerwallet table added\n" in
           let _ = flush_all() in
           let isw_tree = transform_tree (module T) 
                            (module ISellerWalletTable)
@@ -321,14 +314,13 @@ module MakeVersioned (Config: CONFIG)  = struct
                         itembid_table=iitembid_table;
                         walletbid_table=iwalletbid_table;
                         walletitem_table=iwalletitem_table;
-                        penality_table=ipenality_table;
-                        customer_table=icustomer_table;}
+                        penality_table=ipenality_table;}
         end
 
     let madt_to_adt (t:madt) : OM.db Lwt.t =
-      IItemTable.to_adt t.item_table >>= fun warehouse_table ->
+      IItemTable.to_adt t.item_table >>= fun item_table ->
       IBuyerWalletTable.to_adt t.buyerwallet_table >>= fun buyerwallet_table -> 
-      ISellerWalletTable.to_adt t.senderwallet_table >>= fun sellerwallet_table ->
+      ISellerWalletTable.to_adt t.sellerwallet_table >>= fun sellerwallet_table ->
       IBidTable.to_adt t.bid_table >>= fun bid_table ->
       IItemBidTable.to_adt t.itembid_table >>= fun itembid_table ->
       IWalletBidTable.to_adt t.walletbid_table >>= fun walletbid_table ->

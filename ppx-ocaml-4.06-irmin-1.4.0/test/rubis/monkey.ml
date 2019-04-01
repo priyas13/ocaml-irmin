@@ -48,7 +48,7 @@ let do_txn (fp: out_channel) i (pre: Rubis.db Vpst.t)
     try 
       if n<=1 then Db.do_deposit_to_wallet_txn db
       else if n<=2 then Db.do_new_bid_txn db  
-      else if n<=3 then Db.do_get_maximum_bid_for_an_item_txn db
+      else if n<=3 then Db.do_get_maxbid_for_an_item_txn db
       else if n<= 4 then Db.do_auction_txn db  
       else Db.do_update_penality_for_buyers_txn db 
     with Not_found -> 

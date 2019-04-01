@@ -131,7 +131,6 @@ struct
     (*module PHashtbl = struct
       include Hashtbl.Make(struct 
         type t = adt
-
         let addr (o:adt) : int64 = 
           let _ = printf "magic enter\n" in
           let _ = flush_all () in
@@ -139,12 +138,9 @@ struct
           let _ = printf "magic exit\n" in
           let _ = flush_all () in
           addr
-
         let equal x y = Int64.equal (addr x) (addr y)
-
         let hash x = Hashtbl.hash (addr x)
       end)
-
       let find t key = 
         let _ = printf "PHashtbl.find enter\n" in
         let _ = flush_all () in
@@ -330,10 +326,8 @@ struct
       | x::xs, y::ys when cmp x y > 0 -> sorted_list_diff l ys |>
                                           fun (a,r) -> (y::a,r)
       | _,_ -> failwith "Just to satisfy exhaustiveness checker"
-
     let naively_compute_diff l v = 
       sorted_list_diff (OM.elements l) (OM.elements v)
-
     let rec compute_diff l v = 
       match l,v with
         | Empty, _  -> Lwt_main.run @@
@@ -397,13 +391,11 @@ struct
                   (OM.Black (l2, a2, r2))
               end
           end
-
     let rec apply_diff adds removes v = match adds,removes with
       | x::xs, y::ys -> apply_diff xs ys @@ OM.remove y (OM.add x v)
       | x::xs, [] -> apply_diff xs [] @@ OM.add x v
       | [], y::ys -> apply_diff [] ys @@ OM.remove y v
       | [], [] -> v
-
     let rec merge ~(old:t Irmin.Merge.promise) (v1:t) (v2:t) =
       if v1=v2 then Irmin.Merge.ok v1
       else begin
@@ -657,6 +649,6 @@ struct
         
     let liftLwt (m: 'a Lwt.t) : 'a t = fun st ->
       m >>= fun a -> Lwt.return (a,st)
-	end
+  end
 
 end

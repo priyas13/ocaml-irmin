@@ -466,12 +466,12 @@ let get_max_bid bids = match bids with
  | x :: xs -> List.fold_left max (x.bid_amount) (get_bid_amounts xs)
 
 let rec get_max_bid_users biamt bids = match bids with 
- | [] -> failwith "no such buyer"
+ | [] -> []
  | x :: xs -> if x.bid_amount = biamt then x.b_buy_id :: get_max_bid_users biamt xs 
               else get_max_bid_users biamt xs
 
 let rec check_balance_users bids = match bids with 
- | [] -> failwith "no buyer"
+ | [] -> []
  | x :: xs -> if x.buyer_balance < Int64.of_int 0 then x :: check_balance_users xs 
               else check_balance_users xs 
 
