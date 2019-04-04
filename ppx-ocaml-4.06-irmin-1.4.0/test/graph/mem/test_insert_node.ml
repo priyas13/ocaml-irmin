@@ -1,0 +1,21 @@
+(* Graph *)
+module U = struct
+  let string_of_list f l = "[ " ^ List.fold_left (fun a b -> a ^ (f b) ^ "; ") "" l ^ "]"
+  let print_header h = Printf.printf "%s" ("\n" ^ h ^ "\n")
+end
+
+
+
+(* Graph *)
+let _ =
+  U.print_header "Graph";
+let _ = 
+  U.print_header "Testing insert node" in 
+
+  let module G = Graph_imp.Make in
+
+  let original = G.G(([], Int64.of_int 3, "c", []), E_G) in 
+  let g = original |> G.insert_node (Int64.of_int 2) "b"  in 
+  let g' = G.insert_node (Int64.of_int 1) "a"  g in 
+  G.print_graph g'
+
