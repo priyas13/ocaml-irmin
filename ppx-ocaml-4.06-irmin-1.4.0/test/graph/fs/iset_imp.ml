@@ -25,7 +25,6 @@ type adt = OM.t
           | Node of node
   type t = 
     | Me of madt
-    | Child of Atom.t
 
     type boxed_t = t
 
@@ -65,11 +64,9 @@ type adt = OM.t
           end
           let t = 
     let open Irmin.Type in
-    variant "t" (fun m c -> function
-        | Me a  -> m a
-        | Child a -> c a)
+    variant "t" (fun m -> function
+        | Me a  -> m a)
     |~ case1 "Me" IrminConvertTie.madt (fun x -> Me x)
-    |~ case1 "Child" Atom.t (fun x -> Child x)
     |> sealv
   module AO_value : (Irmin.Contents.Conv with type  t =  t) =
   struct
@@ -179,7 +176,6 @@ let add_to_store (v:madt) =
             (read_adt t l >>= fun l' ->
              read_adt t r >>= fun r' ->
              Lwt.return @@ OM.Node {OM.l=l'; OM.v=v; OM.r=r'; OM.h=h})
-            | Child _ -> failwith "read_adt.Exhaustiveness"
       end
   end
 
@@ -225,7 +221,6 @@ let add_to_store (v:madt) =
              (aostore_read l >>= fun l' ->
               aostore_read r >>= fun r' ->
               Lwt.return @@ OM.Node {OM.l=l'; OM.v = v; OM.r=r'; OM.h = h})
-             | Child _ -> failwith "to_adt.exhaustiveness"
 
     (*let rec merge ~old:(old : t Irmin.Merge.promise)  (v1 : t)
       (v2 : t) =
