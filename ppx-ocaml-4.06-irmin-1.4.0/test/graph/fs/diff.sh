@@ -1,3 +1,5 @@
+#!/bin/bash
+
 nrounds=10
 for n in $(seq 10 10 150); 
 do 
@@ -30,6 +32,6 @@ do
 # totalkb=$(echo "scale=2; $total/1024" | bc)
   echo "gzip/diff/total = $gzipkb/$diffkb/$treekb KB"
   cd ..
-  rm -rf _rbset.git
+  rm -rf _graph_imp.git
   echo "$nrounds,$n,$gzipkb,$diffkb,$treekb" >> diff_results.csv
 done

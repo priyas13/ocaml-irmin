@@ -7,25 +7,29 @@ let from_just op msg = match op with
   | Some x -> x
   | None -> failwith @@ msg^": Expected Some. Got None."
 
+(* Graph Make module *)
 module OG = Graph_imp.Make
 
+(* Set module *)
 module OS = OG.OS
 
 module type Config  =
 sig val root : string val shared : string val init : unit -> unit end
 
+
+
 module MakeVersioned (Config: CONFIG) 
                      (Atom:Graph_imp.ATOM)
                       (V: IRMIN_DATA_STRUCTURE
-                         with type adt = OS.t) :
-                         IRMIN_DATA_STRUCTURE with type adt = OG.t = 
+                         with type adt = OS.t) 
+                         (*IRMIN_DATA_STRUCTURE with type adt = OG.t*) = 
 struct
 
 module OS = OG.OS
 open OG
 open OS
-module ISet = Iset_imp.MakeVersioned(Config)(Graph_imp.Edge_type)
-open ISet
+(*module ISet = Iset_imp.MakeVersioned(Config)(Graph_imp.Edge_type)
+open ISet*)
 module K = Irmin.Hash.SHA1
 module G = Git_unix.Mem
    type adt = OG.t 
@@ -58,7 +62,7 @@ module G = Git_unix.Mem
 
   type boxed_t = t
 
-    let nlabel = let open Irmin.Type in string 
+      let nlabel = let open Irmin.Type in string 
       let elabel = let open Irmin.Type in string 
       let node = let open Irmin.Type in int64
       let lnode = let open Irmin.Type in pair node nlabel 
@@ -155,6 +159,19 @@ end
       (module Vtree: V_TREE with type t=T.t 
                              and type tag=T.tag)
 
+        module type AO_STORE = sig
+  type t
+  type adt
+  type value
+  val create: unit -> t Lwt.t
+
+  val add_adt: (module MY_TREE 
+                 with type t='a)
+                -> t -> adt -> 'a -> (K.t*'a) Lwt.t
+
+  val read_adt: t -> K.t -> adt Lwt.t
+end
+
   module AO_store : AO_STORE with type adt=adt 
                               and type value=t = struct
     (* Immutable collection of all versionedt *)
@@ -180,29 +197,6 @@ end
       let tag = T.tag_of_hash k in
       T.add tree tag v >>= fun tree' ->
       Lwt.return (k,tree')
-
-
-    (*module PHashtbl = struct
-      include Hashtbl.Make(struct 
-        type t = adt
-        let addr (o:adt) : int64 = 
-          let _ = printf "magic enter\n" in
-          let _ = flush_all () in
-          let addr = Obj.magic o in
-          let _ = printf "magic exit\n" in
-          let _ = flush_all () in
-          addr
-        let equal x y = Int64.equal (addr x) (addr y)
-        let hash x = Hashtbl.hash (addr x)
-      end)
-      let find t key = 
-        let _ = printf "PHashtbl.find enter\n" in
-        let _ = flush_all () in
-        let v = find t key in
-        let _ = printf "PHashtbl.find exit\n" in
-        let _ = flush_all () in
-        v
-    end*)
 
     let (read_cache: (K.t, adt) Hashtbl.t) = Hashtbl.create 131072
 
@@ -324,6 +318,10 @@ sig
                   (tree option -> tree option Lwt.t) -> unit Lwt.t
 end
 
+let merge_time = ref 0.0
+  let merge_count = ref 0
+  let _name = ref "Anon"
+
   module rec BC_value: IRMIN_STORE_VALUE with type t = t 
                                           and type adt=adt = struct
     include AO_value
@@ -375,7 +373,39 @@ end
         | Child _ -> failwith "to_adt.exhaustiveness"
 
 
-    let merge ~old v1 v2 = failwith "Unimpl."
+     let rec merge ~old:(old : t Irmin.Merge.promise)  (v1 : t)
+      (v2 : t) =
+      if v1 = v2 then Irmin.Merge.ok v1
+      else
+        begin 
+          let t1 = Sys.time () in
+          let open Irmin.Merge.Infix in
+          let _ = printf "Merge called\n" in
+          let _ = flush_all() in
+          let merged_v = ref v1 in (* Hack! see below. *)
+          old() >>=* fun old ->
+          to_adt (from_just old "merge") >>= fun oldv ->
+          to_adt v1 >>= fun v1 ->
+          to_adt v2 >>= fun v2 ->
+          let v = OG.merge3 oldv v1 v2 in
+          BC_store.init () >>= fun repo ->
+          BC_store.master repo >>= fun t ->
+          BC_store.with_tree t ["state"]
+            ~info:(BC_store.info "Mergefn")
+            begin fun trop ->
+              let tr = from_just trop "merge.trop" in
+              let tmod = (module BC_store.Tree : 
+                           MY_TREE with type t = BC_store.tree) in
+              of_adt tmod v tr >>= fun (v',tr') ->
+              let _ = merged_v := v' in
+              Lwt.return @@ Some tr'
+            end >>= fun () ->
+          let t2 = Sys.time () in
+          let _ = merge_time := !merge_time +. (t2-.t1) in
+          let _ = merge_count := !merge_count + 1 in
+          Irmin.Merge.ok !merged_v
+          end 
+
     let merge = Irmin.Merge.(option (v t merge))
   end
 
@@ -403,7 +433,7 @@ end
         let tag_of_string str = [str]
 
         let set_prefix p = 
-          failwith "Irbmap.BC_store.Tree.set_prefix Unimpl."
+          failwith "Igraph.BC_store.Tree.set_prefix Unimpl."
 
         let tag_of_hash k = 
           let sha_str = Fmt.to_to_string Irmin.Hash.SHA1.pp k in
@@ -465,7 +495,7 @@ end
   let pp = AO_value.pp
 
 
-  module type VPST = sig
+  module Vpst : sig
     type 'a t
     val return : 'a -> 'a t
     val bind: 'a t -> ('a -> 'b t) -> 'b t
@@ -475,9 +505,8 @@ end
     val sync_next_version: ?v:OG.t -> string list -> OG.t t
     val liftLwt: 'a Lwt.t -> 'a t
     val pull_remote: string -> unit t
-  end
+  end = struct 
 
-  module Vpst : VPST = struct
     type store = BC_store.t
     (* st is a record type with fields as master, local, name and next_id *)
     type st = {master   : store;

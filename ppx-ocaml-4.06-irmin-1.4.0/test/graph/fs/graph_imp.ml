@@ -5,7 +5,7 @@ module type ATOM = sig
   val t: t Irmin.Type.t
   val compare: t -> t -> int
   val to_string : t -> string 
-  val of_string : string -> t
+  val of_string : 'a -> string -> t
 end
 
 module Edge_type = 
@@ -16,9 +16,7 @@ module Edge_type =
    let compare = Pervasives.compare
    let to_string : t -> string = 
     Fmt.to_to_string (Irmin.Type.pp_json t)
-   let of_string : string -> t = 
-    (fun x -> x, 
-    Int64.of_int 0)
+   let of_string x : string -> t = (fun x -> x, Int64.of_string x)
     let pp = Irmin.Type.pp_json ~minify:false t
   end 
 
@@ -468,14 +466,14 @@ module Make =
        let mg2 = delete_nodes dng1o mg1 in 
       delete_nodes dng2o mg2
 
-    let merge3 o v1 v2 = 
+    (*let merge3 o v1 v2 = 
     let t1 = Sys.time () in
     let res = merge3 o v1 v2 in
     let t2 = Sys.time () in
     begin
       merge_time := !merge_time +. (t2-.t1);
       res;
-    end 
+    end *)
 
 
    let print_int64 i = output_string stdout (string_of_int (Int64.to_int i))
